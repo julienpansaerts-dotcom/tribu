@@ -107,7 +107,11 @@ jobs:
           xcrun altool --upload-app --type ios \
             --file build/export/Tribu.ipa \
             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" \
-            --show-progress --output-format normal
+            --output-format normal 2>&1 | tee upload.log
+          if grep -q "ERROR" upload.log; then
+            echo "::error::L'envoi a été refusé par App Store Connect (voir ci-dessus)."
+            exit 1
+          fi
 
       - name: Journal en cas d'échec
         if: failure()
