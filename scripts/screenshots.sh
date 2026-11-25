@@ -4,7 +4,7 @@
 set -euo pipefail
 APP="$1"
 OUT="${2:-screenshots}"
-BUNDLE="com.julienpansaerts.tribu"
+BUNDLE="tribu"
 
 UDID=$(xcrun simctl list devices available -j | python3 -c '
 import json, re, sys
