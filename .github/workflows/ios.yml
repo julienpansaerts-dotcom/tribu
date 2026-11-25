@@ -1,0 +1,67 @@
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compilation et captures d'écran
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Choisir Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Versions
+        run: |
+          xcodebuild -version
+          xcrun simctl list runtimes
+
+      - name: Installer XcodeGen
+        run: brew install xcodegen
+
+      - name: Générer le projet Xcode
+        run: xcodegen generate
+
+      - name: Compiler pour le simulateur
+        run: |
+          set -o pipefail
+          xcodebuild -project Tribu.xcodeproj -scheme Tribu -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee build.log | grep -E "error:|warning: unre|BUILD" || true
+          if ! grep -q "BUILD SUCCEEDED" build.log; then
+            echo "::group::Erreurs"; grep -E "error:" build.log | sort -u | head -80; echo "::endgroup::"
+            exit 1
+          fi
+
+      - name: Captures d'écran dans le simulateur
+        run: scripts/screenshots.sh build/Build/Products/Debug-iphonesimulator/Tribu.app screenshots
+
+      - name: Publier les captures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures-ecran
+          path: screenshots/
+          if-no-files-found: ignore
+
+      - name: Publier le journal de compilation
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: journal-compilation
+          path: build.log
+          if-no-files-found: ignore

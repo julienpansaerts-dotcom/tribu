@@ -1,0 +1,14 @@
+# Xcode (le projet est généré par XcodeGen à partir de project.yml)
+*.xcodeproj
+*.xcworkspace
+Tribu/Info.plist
+build/
+DerivedData/
+screenshots/
+*.xcresult
+.DS_Store
+# Secrets
+*.p8
+*.mobileprovision
+GoogleService-Info.plist
+.env

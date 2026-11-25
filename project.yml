@@ -1,0 +1,64 @@
+name: Tribu
+options:
+  bundleIdPrefix: com.julienpansaerts
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  developmentLanguage: fr
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Tribu:
+    type: application
+    platform: iOS
+    sources:
+      - path: Tribu
+        excludes:
+          - "**/Licenses/**"
+    info:
+      path: Tribu/Info.plist
+      properties:
+        CFBundleDisplayName: Tribu
+        CFBundleDevelopmentRegion: fr
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        UILaunchScreen:
+          UIColorName: AccentColor
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UIAppFonts:
+          - TribuBricolage-Regular.ttf
+          - TribuBricolage-SemiBold.ttf
+          - TribuBricolage-ExtraBold.ttf
+          - TribuCaveat-Bold.ttf
+          - TribuNewsreader-Regular.ttf
+          - TribuNewsreader-Medium.ttf
+          - TribuNewsreaderItalic-Medium.ttf
+          - TribuHanken-Regular.ttf
+          - TribuHanken-Medium.ttf
+          - TribuHanken-SemiBold.ttf
+          - TribuHanken-Bold.ttf
+          - TribuFamiljen-Regular.ttf
+          - TribuFamiljen-SemiBold.ttf
+          - TribuFamiljen-Bold.ttf
+        NSPhotoLibraryUsageDescription: Tribu utilise vos photos pour la photo de famille et les fiches.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.julienpansaerts.tribu
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+schemes:
+  Tribu:
+    build:
+      targets:
+        Tribu: all
+    run:
+      config: Debug
+    archive:
+      config: Release
