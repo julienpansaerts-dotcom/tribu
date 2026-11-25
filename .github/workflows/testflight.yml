@@ -15,7 +15,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Choisir Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -98,7 +98,7 @@ jobs:
 
       - name: Journal en cas d'échec
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: journal-archive
           path: archive.log

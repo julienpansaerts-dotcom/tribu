@@ -10,8 +10,8 @@ toutes les infos utiles de chacun (tailles, pointures, allergies…), partagées
 
 Le projet Xcode n'est pas versionné : il est généré par [XcodeGen](https://github.com/yonaskolb/XcodeGen)
 à partir de `project.yml`. À chaque envoi sur GitHub, l'action **iOS** compile l'app sur un Mac
-de GitHub et publie des captures d'écran du simulateur (onglet *Actions* → dernière exécution →
-*captures-ecran*).
+de GitHub et publie des captures d'écran du simulateur sur la branche
+[`captures`](../../tree/captures).
 
 Sur un Mac avec Xcode :
 

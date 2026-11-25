@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
@@ -16,7 +19,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Choisir Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -50,9 +53,27 @@ jobs:
       - name: Captures d'écran dans le simulateur
         run: scripts/screenshots.sh build/Build/Products/Debug-iphonesimulator/Tribu.app screenshots
 
+      - name: Publier les captures sur la branche « captures »
+        if: github.event_name != 'pull_request'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd screenshots
+          {
+            echo "# Captures d'écran — ${GITHUB_SHA::7}"
+            echo
+            for f in *.png; do echo "### ${f%.png}"; echo; echo "<img src=\"$f\" width=\"300\">"; echo; done
+          } > README.md
+          git init -q -b captures
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Captures pour ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" captures
+
       - name: Publier les captures
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: captures-ecran
           path: screenshots/
@@ -60,7 +81,7 @@ jobs:
 
       - name: Publier le journal de compilation
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: journal-compilation
           path: build.log
