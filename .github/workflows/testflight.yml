@@ -68,7 +68,7 @@ jobs:
             archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE" || true
           grep -q "ARCHIVE SUCCEEDED" archive.log || { grep -E "error:" archive.log | sort -u | head -60; exit 1; }
 
-      - name: Envoyer sur App Store Connect
+      - name: Exporter l'app signée (.ipa)
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -80,7 +80,7 @@ jobs:
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>${APPLE_TEAM_ID}</string>
             <key>signingStyle</key><string>automatic</string>
             <key>manageAppVersionAndBuildNumber</key><false/>
@@ -95,6 +95,19 @@ jobs:
             -authenticationKeyPath "$KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          ls -la build/export
+
+      - name: Envoyer sur App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          cp "$KEY_PATH" ~/.appstoreconnect/private_keys/
+          xcrun altool --upload-app --type ios \
+            --file build/export/Tribu.ipa \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" \
+            --show-progress --output-format normal
 
       - name: Journal en cas d'échec
         if: failure()
