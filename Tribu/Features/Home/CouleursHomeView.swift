@@ -15,10 +15,8 @@ struct CouleursHomeView: View {
                 coursesTile.staggeredAppear(1)
                 HStack(alignment: .top, spacing: 12) {
                     reminderTile
-                        .frame(maxWidth: .infinity)
-                        .layoutPriority(1)
                     sizeTile
-                        .frame(maxWidth: .infinity)
+                        .frame(width: 132)
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .staggeredAppear(2)
@@ -53,7 +51,7 @@ struct CouleursHomeView: View {
         content()
             .foregroundStyle(theme.ink)
             .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(theme.color(for: module), in: RoundedRectangle(cornerRadius: theme.cornerRadius, style: .continuous))
     }
 
