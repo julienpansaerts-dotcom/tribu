@@ -39,7 +39,9 @@ struct AlbumHomeView: View {
             ZStack(alignment: .bottomLeading) {
                 Group {
                     if let cover {
-                        Image(uiImage: cover).resizable().scaledToFill()
+                        Color.clear.overlay {
+                            Image(uiImage: cover).resizable().scaledToFill()
+                        }
                     } else {
                         Rectangle().fill(Color(hex: 0xB8774A))
                             .overlay(alignment: .topTrailing) {
