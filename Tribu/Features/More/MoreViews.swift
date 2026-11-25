@@ -3,6 +3,9 @@ import SwiftUI
 /// Onglet « Plus » : les autres modules et les réglages.
 struct MoreView: View {
     @Environment(\.theme) private var theme
+    @Environment(AppModel.self) private var model
+    @Environment(FamilyStore.self) private var store
+    @State private var confirmSignOut = false
 
     private var t: Typography { theme.typography }
 
@@ -49,11 +52,35 @@ struct MoreView: View {
                         settingsRow(icon: "paintpalette", title: "Style de l'app", value: theme.style.name)
                     }
                     .buttonStyle(.plain)
+                    if model.isParent {
+                        NavigationLink {
+                            InviteView()
+                        } label: {
+                            settingsRow(icon: "person.badge.plus", title: "Inviter quelqu'un", value: store.householdName)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if model.phase == .ready {
+                        Button {
+                            confirmSignOut = true
+                        } label: {
+                            settingsRow(icon: "rectangle.portrait.and.arrow.right", title: "Se déconnecter", value: "")
+                        }
+                        .buttonStyle(.plain)
+                    } else if model.phase == .demo {
+                        Text("Mode démo : données d'exemple, rien n'est partagé.")
+                            .font(t.caption(13))
+                            .foregroundStyle(theme.secondaryText)
+                            .padding(.top, 4)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 24)
             }
             .themedBackground()
+            .confirmationDialog("Se déconnecter de Tribu ?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+                Button("Se déconnecter", role: .destructive) { model.signOut() }
+            }
         }
     }
 
@@ -146,5 +173,61 @@ private struct StyleCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Code d'invitation à envoyer à un membre de la famille.
+struct InviteView: View {
+    @Environment(\.theme) private var theme
+    @Environment(AppModel.self) private var model
+    @State private var code: String?
+    @State private var loading = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Inviter quelqu'un").font(theme.typography.display(38)).padding(.top, 8)
+                Text("Envoie ce code à ta compagne, à un grand-parent… Il est valable 7 jours. Dans Tribu, il ou elle choisit « Rejoindre une tribu » et le tape.")
+                    .font(theme.typography.body(16))
+                    .foregroundStyle(theme.secondaryText)
+                if let code {
+                    HStack(spacing: 8) {
+                        ForEach(Array(code.enumerated()), id: \.offset) { _, char in
+                            Text(String(char))
+                                .font(theme.typography.number(34))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 68)
+                                .background(theme.color(for: .rappels), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                .foregroundStyle(theme.ink)
+                        }
+                    }
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                    ShareLink(item: "Rejoins notre tribu dans l'app Tribu avec le code \(code) (valable 7 jours).") {
+                        Label("Envoyer le code", systemImage: "square.and.arrow.up")
+                            .font(theme.typography.headline(17))
+                            .frame(maxWidth: .infinity, minHeight: 54)
+                            .background(theme.text, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .foregroundStyle(theme.background)
+                    }
+                    Button("Créer un autre code") { Task { await generate() } }
+                        .font(theme.typography.body(15))
+                        .foregroundStyle(theme.secondaryText)
+                } else {
+                    ProgressView().frame(maxWidth: .infinity, minHeight: 68)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .themedBackground()
+        .navigationBarTitleDisplayMode(.inline)
+        .task { if code == nil { await generate() } }
+    }
+
+    private func generate() async {
+        guard !loading else { return }
+        loading = true
+        let newCode = await model.createInvite()
+        withAnimation(.spring) { code = newCode }
+        loading = false
     }
 }

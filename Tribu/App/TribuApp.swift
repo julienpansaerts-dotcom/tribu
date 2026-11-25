@@ -2,18 +2,65 @@ import SwiftUI
 
 @main
 struct TribuApp: App {
-    @State private var store = FamilyStore.sample()
+    @State private var model: AppModel
     @AppStorage("tribu.style") private var styleRaw: String = TribuStyle.couleurs.rawValue
+
+    init() {
+        Backend.configureIfPossible()
+        _model = State(initialValue: AppModel())
+    }
 
     private var theme: Theme { Theme.make(TribuStyle(rawValue: styleRaw) ?? .couleurs) }
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(store)
+            PhaseView()
+                .environment(model)
+                .environment(model.store)
                 .environment(\.theme, theme)
                 .tint(theme.accent)
                 .animation(.smooth(duration: 0.45), value: styleRaw)
+        }
+    }
+}
+
+/// Affiche l'écran qui correspond à l'étape : connexion, choix de tribu ou app.
+struct PhaseView: View {
+    @Environment(AppModel.self) private var model
+    @Environment(\.theme) private var theme
+
+    /// Pour les captures d'écran : force un écran d'accueil en mode démo.
+    private let forcedScreen = UserDefaults.standard.string(forKey: "tribu.onboarding") ?? ""
+
+    var body: some View {
+        Group {
+            switch forcedScreen {
+            case "welcome": WelcomeView()
+            case "tribe": ChooseTribeView()
+            case "create": CreateTribeView()
+            case "join": JoinTribeView()
+            case "person": ChoosePersonView()
+            default:
+                switch model.phase {
+                case .loading:
+                    ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .themedBackground()
+                case .signedOut: WelcomeView()
+                case .needsTribe: ChooseTribeView()
+                case .choosePerson: ChoosePersonView()
+                case .demo, .ready: RootView()
+                }
+            }
+        }
+        .animation(.smooth, value: model.phase)
+        .alert("Oups", isPresented: Binding(
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.errorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(model.errorMessage ?? "")
         }
     }
 }
@@ -32,16 +79,8 @@ struct RootView: View {
             Tab("Accueil", systemImage: "house", value: AppTab.home) {
                 HomeView()
             }
-            Tab("Cuisine", systemImage: "basket", value: AppTab.cuisine) {
-                ComingSoonView(
-                    title: "Cuisine",
-                    module: .courses,
-                    lines: [
-                        "Listes de courses partagées, en temps réel",
-                        "Recettes importées depuis un simple lien",
-                        "Menu de la semaine relié aux courses",
-                    ]
-                )
+            Tab("Courses", systemImage: "basket", value: AppTab.cuisine) {
+                ShoppingListView()
             }
             Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {
                 ComingSoonView(

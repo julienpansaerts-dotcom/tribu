@@ -26,6 +26,15 @@ enum TribuStyle: String, CaseIterable, Identifiable {
     }
 }
 
+/// Couleurs proposées pour les membres de la famille.
+enum MemberColors {
+    static let all: [UInt32] = [0xE8553B, 0x4F86C6, 0xF2B84B, 0x7FAF8B, 0xF6A1B5, 0x2F6B4F, 0xC98E5A, 0x3FA7A0, 0x1D1B18]
+
+    static func next(after used: [UInt32]) -> UInt32 {
+        all.first { !used.contains($0) } ?? all[used.count % all.count]
+    }
+}
+
 /// Les modules de l'app, utilisés pour leur couleur propre.
 enum Module: CaseIterable {
     case courses, rappels, famille, agenda, repas, depenses, taches, activites

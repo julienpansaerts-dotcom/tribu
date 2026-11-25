@@ -6,6 +6,7 @@ struct FamilyListView: View {
     @Environment(\.theme) private var theme
     @Environment(FamilyStore.self) private var store
 
+    @State private var showNewPerson = false
     @State private var path: [String] = {
         let id = UserDefaults.standard.string(forKey: "tribu.person") ?? ""
         return id.isEmpty ? [] : [id]
@@ -17,10 +18,28 @@ struct FamilyListView: View {
         NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Famille")
-                        .font(t.display(44))
-                        .padding(.top, 12)
-                        .padding(.bottom, 6)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Famille")
+                            .font(t.display(44))
+                        Spacer()
+                        Button {
+                            showNewPerson = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.title3.weight(.semibold))
+                                .frame(width: 44, height: 44)
+                                .background(theme.surface, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Ajouter une personne")
+                    }
+                    .padding(.top, 12)
+                    .padding(.bottom, 6)
+                    if store.people.isEmpty {
+                        Text("Ajoute les membres de la famille pour noter leurs tailles, allergies et infos utiles.")
+                            .font(t.body(16))
+                            .foregroundStyle(theme.secondaryText)
+                    }
                     ForEach(Array(store.people.enumerated()), id: \.element.id) { index, person in
                         NavigationLink(value: person.id) {
                             PersonRow(person: person)
@@ -36,6 +55,7 @@ struct FamilyListView: View {
             .navigationDestination(for: String.self) { id in
                 PersonDetailView(personId: id)
             }
+            .sheet(isPresented: $showNewPerson) { PersonEditor(existing: nil) }
         }
     }
 }
@@ -74,6 +94,10 @@ struct PersonDetailView: View {
     let personId: String
     @Environment(\.theme) private var theme
     @Environment(FamilyStore.self) private var store
+    @State private var editingSize: SizeEntry?
+    @State private var addingSize = false
+    @State private var editingPerson = false
+    @State private var addingGrowth = false
 
     private var t: Typography { theme.typography }
 
@@ -89,6 +113,16 @@ struct PersonDetailView: View {
                     if person.growth.count > 1 {
                         GrowthChart(points: person.growth)
                     }
+                    if person.isChild {
+                        Button {
+                            addingGrowth = true
+                        } label: {
+                            Label("Ajouter une mesure (taille, poids)", systemImage: "ruler")
+                                .font(t.body(15))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(theme.secondaryText)
+                    }
                     if !person.notes.isEmpty {
                         notes(person)
                     }
@@ -98,6 +132,15 @@ struct PersonDetailView: View {
             }
             .themedBackground()
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button("Modifier") { editingPerson = true }
+                }
+            }
+            .sheet(item: $editingSize) { size in SizeEditor(person: person, existing: size) }
+            .sheet(isPresented: $addingSize) { SizeEditor(person: person, existing: nil) }
+            .sheet(isPresented: $editingPerson) { PersonEditor(existing: person) }
+            .sheet(isPresented: $addingGrowth) { GrowthEditor(person: person) }
         }
     }
 
@@ -141,9 +184,16 @@ struct PersonDetailView: View {
             }
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 3), spacing: 8) {
                 ForEach(person.sizes) { size in
-                    SizeCell(size: size)
+                    Button {
+                        editingSize = size
+                    } label: {
+                        SizeCell(size: size)
+                    }
+                    .buttonStyle(.plain)
                 }
-                Button {} label: {
+                Button {
+                    addingSize = true
+                } label: {
                     VStack(spacing: 6) {
                         Image(systemName: "plus").font(.title3)
                         Text("Ajouter").font(t.caption(12))
@@ -177,13 +227,16 @@ private struct SizeCell: View {
     let size: SizeEntry
     @Environment(\.theme) private var theme
 
-    private var isRecent: Bool { size.previousValue != nil }
+    /// Mis en avant pendant 30 jours après un changement de taille.
+    private var isRecent: Bool {
+        size.previousValue != nil && size.updatedAt > Date.now.addingTimeInterval(-30 * 24 * 3600)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(size.label).font(theme.typography.caption(12)).foregroundStyle(isRecent ? theme.ink.opacity(0.75) : theme.secondaryText)
             Text(size.value).font(theme.typography.number(26)).foregroundStyle(isRecent ? theme.ink : theme.text)
-            Text(size.previousValue.map { "avant : \($0)" } ?? size.detail ?? " ")
+            Text(isRecent ? "avant : \(size.previousValue ?? "")" : (size.detail ?? " "))
                 .font(theme.typography.caption(11))
                 .foregroundStyle(isRecent ? theme.ink.opacity(0.75) : theme.secondaryText)
                 .lineLimit(1)

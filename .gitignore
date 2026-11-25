@@ -2,6 +2,8 @@
 *.xcodeproj
 *.xcworkspace
 Tribu/Info.plist
+Tribu/Tribu.entitlements
+Tribu/Resources/GoogleService-Info.plist
 build/
 DerivedData/
 screenshots/

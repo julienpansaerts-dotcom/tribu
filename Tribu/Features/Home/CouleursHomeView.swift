@@ -29,6 +29,15 @@ struct CouleursHomeView: View {
         .themedBackground()
     }
 
+    private var todaySummary: String {
+        let count = store.today.filter { !$0.isDone }.count
+        switch count {
+        case 0: return "\(store.remainingShopping.count) à acheter."
+        case 1: return "1 chose aujourd'hui."
+        default: return "\(count) choses aujourd'hui."
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(Date.now.tribuLongDate)
@@ -36,7 +45,7 @@ struct CouleursHomeView: View {
                 .foregroundStyle(theme.secondaryText)
             Text("Salut la famille.")
                 .font(t.display(40))
-            Text("\(store.today.filter { !$0.isDone }.count) choses aujourd'hui.")
+            Text(todaySummary)
                 .font(t.display(40))
                 .foregroundStyle(theme.secondaryText.opacity(0.8))
                 .contentTransition(.numericText())
@@ -141,6 +150,9 @@ struct CouleursHomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Agenda").font(t.headline(15)).padding(.bottom, 6)
                 let events = store.today.filter { $0.kind == .event }
+                if events.isEmpty {
+                    Text("Rien de prévu aujourd'hui.").font(t.body(16)).padding(.vertical, 8)
+                }
                 ForEach(Array(events.enumerated()), id: \.element.id) { index, item in
                     HStack {
                         Text(item.time).font(t.headline(15)).frame(width: 52, alignment: .leading)

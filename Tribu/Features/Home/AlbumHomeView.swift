@@ -123,6 +123,11 @@ struct AlbumHomeView: View {
     private var todayList: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text("Aujourd'hui").font(t.title(24)).padding(.bottom, 6)
+            if store.today.filter({ $0.kind != .meal }).isEmpty {
+                Text("Une journée calme. Il reste \(store.remainingShopping.count) article\(store.remainingShopping.count > 1 ? "s" : "") sur la liste de courses.")
+                    .font(t.body(16))
+                    .foregroundStyle(theme.secondaryText)
+            }
             ForEach(store.today.filter { $0.kind != .meal }) { item in
                 HStack(spacing: 12) {
                     Text(item.time)
