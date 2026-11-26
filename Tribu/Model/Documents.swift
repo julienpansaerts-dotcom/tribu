@@ -743,3 +743,128 @@ struct FeedEntry: FamilyDocument {
         ["text": text, "actorName": actorName, "icon": icon, "createdAt": Timestamp(date: createdAt)]
     }
 }
+
+// MARK: - Carnet de santé
+
+/// Un médecin ou un professionnel de santé de la famille.
+struct Doctor: FamilyDocument {
+    static let collection = "doctors"
+    static var storePath: ReferenceWritableKeyPath<FamilyStore, [Doctor]> { \.doctors }
+
+    static let specialties = [
+        "Pédiatre", "Médecin généraliste", "Gastro-entérologue", "ORL", "Dermatologue", "Allergologue",
+        "Pneumologue", "Ophtalmologue", "Dentiste", "Orthodontiste", "Kinésithérapeute", "Logopède",
+        "Psychomotricien·ne", "Psychologue", "Cardiologue", "Neurologue", "Gynécologue", "Sage-femme",
+        "ONE (consultation)", "Urgences", "Autre",
+    ]
+
+    var id: String = UUID().uuidString
+    var name: String
+    var specialty: String = "Pédiatre"
+    var phone: String = ""
+    var email: String = ""
+    var address: String = ""
+    var notes: String = ""
+    var personIds: [String] = []
+
+    init(id: String = UUID().uuidString, name: String, specialty: String = "Pédiatre", phone: String = "", email: String = "",
+         address: String = "", notes: String = "", personIds: [String] = []) {
+        self.id = id
+        self.name = name
+        self.specialty = specialty
+        self.phone = phone
+        self.email = email
+        self.address = address
+        self.notes = notes
+        self.personIds = personIds
+    }
+
+    init?(id: String, data: [String: Any]) {
+        guard let name = data["name"] as? String else { return nil }
+        self.id = id
+        self.name = name
+        specialty = data["specialty"] as? String ?? "Autre"
+        phone = data["phone"] as? String ?? ""
+        email = data["email"] as? String ?? ""
+        address = data["address"] as? String ?? ""
+        notes = data["notes"] as? String ?? ""
+        personIds = FS.strings(data["personIds"])
+    }
+
+    var firestoreData: [String: Any] {
+        ["name": name, "specialty": specialty, "phone": phone, "email": email, "address": address,
+         "notes": notes, "personIds": personIds]
+    }
+}
+
+/// Une visite chez un médecin : ce qui a été vu et dit.
+struct MedicalVisit: FamilyDocument {
+    static let collection = "visits"
+    static var storePath: ReferenceWritableKeyPath<FamilyStore, [MedicalVisit]> { \.visits }
+
+    var id: String = UUID().uuidString
+    var personId: String
+    var doctorId: String?
+    var date: Date = .now
+    var reason: String = ""
+    var summary: String = ""
+    var heightCm: Double?
+    var weightKg: Double?
+    var headCm: Double?
+    var vaccines: [String] = []
+    var treatment: String = ""
+    var nextAppointment: Date?
+    var createdByName: String = ""
+
+    init(id: String = UUID().uuidString, personId: String, doctorId: String? = nil, date: Date = .now, reason: String = "",
+         summary: String = "", heightCm: Double? = nil, weightKg: Double? = nil, headCm: Double? = nil,
+         vaccines: [String] = [], treatment: String = "", nextAppointment: Date? = nil, createdByName: String = "") {
+        self.id = id
+        self.personId = personId
+        self.doctorId = doctorId
+        self.date = date
+        self.reason = reason
+        self.summary = summary
+        self.heightCm = heightCm
+        self.weightKg = weightKg
+        self.headCm = headCm
+        self.vaccines = vaccines
+        self.treatment = treatment
+        self.nextAppointment = nextAppointment
+        self.createdByName = createdByName
+    }
+
+    init?(id: String, data: [String: Any]) {
+        guard let personId = data["personId"] as? String else { return nil }
+        self.id = id
+        self.personId = personId
+        doctorId = data["doctorId"] as? String
+        date = FS.date(data["date"]) ?? .now
+        reason = data["reason"] as? String ?? ""
+        summary = data["summary"] as? String ?? ""
+        heightCm = FS.double(data["heightCm"])
+        weightKg = FS.double(data["weightKg"])
+        headCm = FS.double(data["headCm"])
+        vaccines = FS.strings(data["vaccines"])
+        treatment = data["treatment"] as? String ?? ""
+        nextAppointment = FS.date(data["nextAppointment"])
+        createdByName = data["createdByName"] as? String ?? ""
+    }
+
+    var firestoreData: [String: Any] {
+        [
+            "personId": personId,
+            "doctorId": FS.value(doctorId),
+            "date": Timestamp(date: date),
+            "reason": reason,
+            "summary": summary,
+            "heightCm": FS.value(heightCm),
+            "weightKg": FS.value(weightKg),
+            "headCm": FS.value(headCm),
+            "vaccines": vaccines,
+            "treatment": treatment,
+            "nextAppointment": FS.value(nextAppointment),
+            "createdByName": createdByName,
+        ]
+    }
+}

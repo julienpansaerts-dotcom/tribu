@@ -24,7 +24,9 @@ final class AppModel {
     /// Prénom renvoyé par Apple à la première connexion (pour préremplir).
     var suggestedFirstName = ""
 
-    let store: FamilyStore
+    private(set) var store: FamilyStore
+    /// Vrai quand la famille d'exemple a été ouverte volontairement (Firebase reste disponible).
+    private(set) var isTryingDemo = false
     private(set) var householdId: String?
     private(set) var role: String?
     @ObservationIgnored private var sync: RemoteSync?
@@ -40,6 +42,7 @@ final class AppModel {
             phase = .loading
             authHandle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
                 guard let self else { return }
+                guard !self.isTryingDemo else { return }
                 Task { @MainActor in await self.handle(user: user) }
             }
         } else {
@@ -90,6 +93,26 @@ final class AppModel {
                 }
             }
         }
+    }
+
+    // MARK: - Famille d'exemple
+
+    /// Ouvre une famille d'exemple, gardée sur l'iPhone uniquement, pour découvrir l'app.
+    func enterDemo() {
+        sync?.stop()
+        sync = nil
+        store = .sample()
+        isTryingDemo = true
+        phase = .demo
+    }
+
+    /// Quitte la famille d'exemple et revient à la vraie tribu (ou à l'écran de connexion).
+    func exitDemo() {
+        isTryingDemo = false
+        store = .empty()
+        guard Backend.isConfigured else { return }
+        phase = .loading
+        Task { @MainActor in await self.handle(user: Auth.auth().currentUser) }
     }
 
     func signOut() {

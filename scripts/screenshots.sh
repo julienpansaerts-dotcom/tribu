@@ -36,7 +36,7 @@ shoot() { # nom style apparence [arguments supplémentaires…]
   xcrun simctl ui "$UDID" appearance "$appearance"
   xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
   xcrun simctl launch "$UDID" "$BUNDLE" -tribu.demo YES -tribu.style "$style" \
-    -tribu.tab home -tribu.person "" -tribu.onboarding "" -tribu.module "" -tribu.cuisine "" "$@" >/dev/null
+    -tribu.tab home -tribu.person "" -tribu.onboarding "" -tribu.module "" -tribu.cuisine "" -tribu.health NO "$@" >/dev/null
   sleep 4
   xcrun simctl io "$UDID" screenshot "$OUT/${style}-${name}-${appearance}.png" >/dev/null
   echo "  ${style}-${name}-${appearance}.png"
@@ -61,5 +61,7 @@ shoot activites "$style" light -tribu.tab more -tribu.module activities
 shoot fil "$style" light -tribu.tab more -tribu.module feed
 shoot agenda frigo light -tribu.tab agenda
 shoot depenses album light -tribu.tab more -tribu.module expenses
+shoot carnet-leo "$style" light -tribu.tab family -tribu.person leo -tribu.health YES
+shoot carnet-leo album light -tribu.tab family -tribu.person leo -tribu.health YES
 shoot welcome "$style" light -tribu.onboarding welcome
 shoot tribe "$style" light -tribu.onboarding tribe

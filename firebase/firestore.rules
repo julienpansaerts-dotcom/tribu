@@ -90,7 +90,7 @@ service cloud.firestore {
       // Modules partagés de la tribu.
       match /{collection}/{docId} {
         allow read, write: if isMember(hid)
-          && collection in ['reminders', 'events', 'recipes', 'meals', 'tasks', 'expenses', 'activities'];
+          && collection in ['reminders', 'events', 'recipes', 'meals', 'tasks', 'expenses', 'activities', 'doctors', 'visits'];
       }
 
       // État des notifications regroupées : réservé au serveur.

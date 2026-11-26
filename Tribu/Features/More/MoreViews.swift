@@ -99,16 +99,30 @@ struct MoreView: View {
                     }
                     if model.phase == .ready {
                         Button {
+                            model.enterDemo()
+                        } label: {
+                            settingsRow(icon: "person.3", title: "Voir la famille d'exemple", value: "")
+                        }
+                        .buttonStyle(.plain)
+                        Button {
                             confirmSignOut = true
                         } label: {
                             settingsRow(icon: "rectangle.portrait.and.arrow.right", title: "Se déconnecter", value: "")
                         }
                         .buttonStyle(.plain)
                     } else if model.phase == .demo {
-                        Text("Mode démo : données d'exemple, rien n'est partagé.")
+                        Text("Famille d'exemple : rien n'est partagé, les modifications restent sur cet iPhone.")
                             .font(t.caption(13))
                             .foregroundStyle(theme.secondaryText)
                             .padding(.top, 4)
+                        if model.isTryingDemo {
+                            Button {
+                                model.exitDemo()
+                            } label: {
+                                settingsRow(icon: "arrow.uturn.backward", title: "Quitter la famille d'exemple", value: "")
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
                 .padding(.horizontal, 20)

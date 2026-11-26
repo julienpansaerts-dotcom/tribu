@@ -9,7 +9,8 @@ struct FamilyListView: View {
     @State private var showNewPerson = false
     @State private var path: [String] = {
         let id = UserDefaults.standard.string(forKey: "tribu.person") ?? ""
-        return id.isEmpty ? [] : [id]
+        guard !id.isEmpty else { return [] }
+        return UserDefaults.standard.bool(forKey: "tribu.health") ? [id, "health:" + id] : [id]
     }()
 
     private var t: Typography { theme.typography }
@@ -53,7 +54,11 @@ struct FamilyListView: View {
             }
             .themedBackground()
             .navigationDestination(for: String.self) { id in
-                PersonDetailView(personId: id)
+                if id.hasPrefix("health:") {
+                    HealthBookView(personId: String(id.dropFirst(7)))
+                } else {
+                    PersonDetailView(personId: id)
+                }
             }
             .sheet(isPresented: $showNewPerson) { PersonEditor(existing: nil) }
         }
@@ -109,6 +114,7 @@ struct PersonDetailView: View {
                     ForEach(person.allergies, id: \.self) { allergy in
                         allergyBanner(allergy, notes: person.notes.first)
                     }
+                    HealthBookLink(person: person)
                     sizesGrid(person)
                     if person.growth.count > 1 {
                         GrowthChart(points: person.growth)
