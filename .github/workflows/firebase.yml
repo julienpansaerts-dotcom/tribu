@@ -82,5 +82,13 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
           echo "FIREBASE_PROJECT=$(jq -r .project_id "$RUNNER_TEMP/sa.json")" >> "$GITHUB_ENV"
 
+      - name: Activer les services Google nécessaires
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          gcloud services enable cloudbilling.googleapis.com cloudscheduler.googleapis.com eventarc.googleapis.com \
+            run.googleapis.com pubsub.googleapis.com cloudfunctions.googleapis.com cloudbuild.googleapis.com \
+            artifactregistry.googleapis.com --project "$FIREBASE_PROJECT" --quiet
+          sleep 30
+
       - name: Déployer
         run: npx --yes firebase-tools@14 deploy --only functions --project "$FIREBASE_PROJECT" --non-interactive --force
