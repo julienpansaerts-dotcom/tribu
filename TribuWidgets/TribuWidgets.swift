@@ -52,6 +52,11 @@ struct TodayWidgetView: View {
     private var t: Typography { theme.typography }
     private var pending: [WidgetSnapshot.Item] { snapshot.today.filter { !$0.done } }
 
+    /// Le fond « post-it » du frigo reste clair même en mode sombre : le texte doit donc rester foncé.
+    private var lightBackground: Bool { theme.style == .frigo }
+    private var primary: Color { lightBackground ? theme.ink : theme.text }
+    private var secondary: Color { lightBackground ? theme.ink.opacity(0.68) : theme.secondaryText }
+
     var body: some View {
         Group {
             switch family {
@@ -94,14 +99,14 @@ struct TodayWidgetView: View {
                     .minimumScaleFactor(0.7)
                 Spacer(minLength: 0)
                 if family != .systemSmall {
-                    Text("\(pending.count) à venir").font(t.caption(12)).foregroundStyle(theme.secondaryText)
+                    Text("\(pending.count) à venir").font(t.caption(12)).foregroundStyle(secondary)
                 }
             }
             if pending.isEmpty {
                 Spacer(minLength: 0)
                 Text("Rien de prévu aujourd'hui.")
                     .font(theme.style == .frigo ? t.hand(20) : t.body(14))
-                    .foregroundStyle(theme.secondaryText)
+                    .foregroundStyle(secondary)
                 Spacer(minLength: 0)
             } else {
                 ForEach(pending.prefix(maxItems), id: \.self) { item in
@@ -111,7 +116,7 @@ struct TodayWidgetView: View {
                             Text(item.title).font(t.headline(family == .systemSmall ? 13 : 14)).lineLimit(1)
                             Text(family == .systemSmall ? item.time : [item.time, item.detail].filter { !$0.isEmpty }.joined(separator: " · "))
                                 .font(t.caption(11))
-                                .foregroundStyle(theme.secondaryText)
+                                .foregroundStyle(secondary)
                                 .lineLimit(1)
                         }
                     }
@@ -123,10 +128,10 @@ struct TodayWidgetView: View {
                 Divider()
                 Label("\(snapshot.shoppingCount) article\(snapshot.shoppingCount > 1 ? "s" : "") sur la liste de courses", systemImage: "basket")
                     .font(t.caption(12))
-                    .foregroundStyle(theme.secondaryText)
+                    .foregroundStyle(secondary)
             }
         }
-        .foregroundStyle(theme.text)
+        .foregroundStyle(primary)
         .containerBackground(for: .widget) { background }
     }
 

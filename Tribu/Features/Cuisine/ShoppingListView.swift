@@ -98,6 +98,8 @@ struct ShoppingListView: View {
         .padding(.horizontal, 14)
         .frame(height: 50)
         .background(theme.color(for: .courses).opacity(theme.style == .couleurs ? 0.25 : 1), in: RoundedRectangle(cornerRadius: min(theme.cornerRadius, 14), style: .continuous))
+        // Sur un fond de couleur plein, le texte reste foncé, même en mode sombre.
+        .foregroundStyle(theme.style == .couleurs ? theme.text : theme.ink)
     }
 
     private var usualChips: some View {
