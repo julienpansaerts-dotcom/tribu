@@ -1,0 +1,86 @@
+rules_version = '2';
+
+// Règles d'accès de Tribu.
+// Principe : seuls les membres d'une tribu lisent et écrivent ses données.
+// Les rôles (parent, membre…) sont stockés dans households/{tribu}/members/{uid}.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberDoc(hid) {
+      return /databases/$(database)/documents/households/$(hid)/members/$(request.auth.uid);
+    }
+
+    function isMember(hid) {
+      return signedIn() && exists(memberDoc(hid));
+    }
+
+    function isParent(hid) {
+      return isMember(hid) && get(memberDoc(hid)).data.role == 'parent';
+    }
+
+    function invite(code) {
+      return get(/databases/$(database)/documents/invites/$(code)).data;
+    }
+
+    // Chaque utilisateur ne voit que sa propre fiche (qui indique sa tribu).
+    match /users/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Codes d'invitation : lisibles par toute personne connectée qui connaît le code.
+    match /invites/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if isParent(request.resource.data.householdId)
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.role in ['parent', 'membre', 'grand-parent'];
+      allow delete: if isParent(resource.data.householdId);
+    }
+
+    match /households/{hid} {
+      allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
+      allow read: if isMember(hid) || (signedIn() && resource.data.createdBy == request.auth.uid);
+      allow update: if isParent(hid);
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isMember(hid) || (signedIn() && uid == request.auth.uid);
+
+        // Le créateur devient parent ; les autres entrent avec un code valide.
+        allow create: if signedIn() && uid == request.auth.uid && (
+          (get(/databases/$(database)/documents/households/$(hid)).data.createdBy == request.auth.uid
+            && request.resource.data.role == 'parent')
+          ||
+          ('inviteCode' in request.resource.data
+            && invite(request.resource.data.inviteCode).householdId == hid
+            && invite(request.resource.data.inviteCode).expiresAt > request.time
+            && request.resource.data.role == invite(request.resource.data.inviteCode).role)
+        );
+
+        // Un membre peut modifier sa fiche sans changer son rôle ; un parent peut tout gérer.
+        allow update: if isParent(hid)
+          || (uid == request.auth.uid && request.resource.data.role == resource.data.role);
+        allow delete: if isParent(hid) || uid == request.auth.uid;
+      }
+
+      match /people/{pid} {
+        allow read, write: if isMember(hid);
+      }
+
+      match /lists/{listId} {
+        allow read, write: if isMember(hid);
+        match /items/{itemId} {
+          allow read, write: if isMember(hid);
+        }
+      }
+
+      match /feed/{eventId} {
+        allow read, create: if isMember(hid);
+      }
+    }
+  }
+}

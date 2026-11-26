@@ -30,17 +30,14 @@ xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --
 xcrun simctl install "$UDID" "$APP"
 mkdir -p "$OUT"
 
-shoot() { # style tab appearance [personne]
-  local style="$1" tab="$2" appearance="$3" person="${4:-}"
+shoot() { # style tab appearance [personne] [écran d'accueil]
+  local style="$1" tab="$2" appearance="$3" person="${4:-}" onboarding="${5:-}"
   xcrun simctl ui "$UDID" appearance "$appearance"
   xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
-  if [ -n "$person" ]; then
-    xcrun simctl launch "$UDID" "$BUNDLE" -tribu.style "$style" -tribu.tab "$tab" -tribu.person "$person" >/dev/null
-  else
-    xcrun simctl launch "$UDID" "$BUNDLE" -tribu.style "$style" -tribu.tab "$tab" -tribu.person "" >/dev/null
-  fi
+  xcrun simctl launch "$UDID" "$BUNDLE" -tribu.demo YES -tribu.style "$style" -tribu.tab "$tab" \
+    -tribu.person "$person" -tribu.onboarding "$onboarding" >/dev/null
   sleep 4
-  local name="${style}-${tab}${person:+-$person}-${appearance}.png"
+  local name="${style}-${onboarding:-$tab}${person:+-$person}-${appearance}.png"
   xcrun simctl io "$UDID" screenshot "$OUT/$name" >/dev/null
   echo "  $name"
 }
@@ -48,6 +45,10 @@ shoot() { # style tab appearance [personne]
 for style in frigo album couleurs; do
   shoot "$style" home light
   shoot "$style" family light leo
+  shoot "$style" cuisine light
   shoot "$style" more light
   shoot "$style" home dark
 done
+shoot couleurs home light "" welcome
+shoot couleurs home light "" tribe
+shoot couleurs home light "" join

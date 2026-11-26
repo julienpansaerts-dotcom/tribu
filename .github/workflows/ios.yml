@@ -31,6 +31,23 @@ jobs:
           xcodebuild -version
           xcrun simctl list runtimes
 
+      - name: Ajouter la configuration Firebase
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then
+            printf '%s\n' "$GOOGLE_SERVICE_INFO_PLIST" > Tribu/Resources/GoogleService-Info.plist
+            plutil -lint Tribu/Resources/GoogleService-Info.plist
+          else
+            echo "::warning::Secret GOOGLE_SERVICE_INFO_PLIST absent : l'app tournera en mode démo."
+          fi
+
+      - name: Cache des paquets Swift
+        uses: actions/cache@v4
+        with:
+          path: spm
+          key: spm-${{ hashFiles('project.yml') }}
+
       - name: Installer XcodeGen
         run: brew install xcodegen
 
@@ -43,6 +60,8 @@ jobs:
           xcodebuild -project Tribu.xcodeproj -scheme Tribu -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath build \
+            -clonedSourcePackagesDirPath spm \
+            -skipPackagePluginValidation -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee build.log | grep -E "error:|warning: unre|BUILD" || true
           if ! grep -q "BUILD SUCCEEDED" build.log; then
@@ -54,7 +73,6 @@ jobs:
         run: scripts/screenshots.sh build/Build/Products/Debug-iphonesimulator/Tribu.app screenshots
 
       - name: Publier les captures sur la branche « captures »
-        if: github.event_name != 'pull_request'
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

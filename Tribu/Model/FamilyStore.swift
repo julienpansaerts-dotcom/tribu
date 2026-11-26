@@ -1,12 +1,24 @@
 import Foundation
 import Observation
 
-/// Données de la maisonnée.
-///
-/// Pour ce premier jalon, les données sont des exemples locaux : elles seront remplacées par la
-/// synchronisation Firebase (partage en temps réel entre les membres) au jalon suivant.
+/// Écritures vers le serveur. En mode démo, il n'y en a pas et le magasin modifie ses données localement.
+protocol FamilyRemote: AnyObject {
+    func savePerson(_ person: Person)
+    func deletePerson(_ personId: String)
+    func saveSize(_ size: SizeEntry, personId: String)
+    func deleteSize(_ sizeId: String, personId: String)
+    func saveGrowth(_ point: GrowthPoint, personId: String)
+    func addShopping(name: String, quantity: String?)
+    func setShopping(_ item: ShoppingItem, checked: Bool)
+    func deleteShopping(_ itemIds: [String])
+}
+
+/// Données de la tribu, partagées en temps réel via Firebase (ou exemples locaux en mode démo).
 @Observable
 final class FamilyStore {
+    /// Branché par la synchronisation Firebase ; nil en mode démo.
+    @ObservationIgnored weak var remote: FamilyRemote?
+
     var householdName: String
     var currentUserId: String
     var people: [Person]
@@ -48,6 +60,67 @@ final class FamilyStore {
 
     var remainingShopping: [ShoppingItem] { shopping.filter { !$0.isChecked } }
 
+    // MARK: - Modifications
+
+    func savePerson(_ person: Person) {
+        if let remote { remote.savePerson(person); return }
+        if let index = people.firstIndex(where: { $0.id == person.id }) {
+            var updated = person
+            updated.sizes = people[index].sizes
+            updated.growth = people[index].growth
+            people[index] = updated
+        } else {
+            people.append(person)
+        }
+    }
+
+    func deletePerson(_ personId: String) {
+        if let remote { remote.deletePerson(personId); return }
+        people.removeAll { $0.id == personId }
+    }
+
+    func saveSize(_ size: SizeEntry, personId: String) {
+        if let remote { remote.saveSize(size, personId: personId); return }
+        guard let p = people.firstIndex(where: { $0.id == personId }) else { return }
+        if let s = people[p].sizes.firstIndex(where: { $0.id == size.id }) {
+            people[p].sizes[s] = size
+        } else {
+            people[p].sizes.append(size)
+        }
+    }
+
+    func deleteSize(_ sizeId: String, personId: String) {
+        if let remote { remote.deleteSize(sizeId, personId: personId); return }
+        guard let p = people.firstIndex(where: { $0.id == personId }) else { return }
+        people[p].sizes.removeAll { $0.id == sizeId }
+    }
+
+    func saveGrowth(_ point: GrowthPoint, personId: String) {
+        if let remote { remote.saveGrowth(point, personId: personId); return }
+        guard let p = people.firstIndex(where: { $0.id == personId }) else { return }
+        people[p].growth.append(point)
+        people[p].growth.sort { $0.date < $1.date }
+    }
+
+    func addShopping(name: String, quantity: String?) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let remote { remote.addShopping(name: trimmed, quantity: quantity); return }
+        shopping.insert(ShoppingItem(id: UUID().uuidString, name: trimmed, quantity: quantity, origin: nil), at: 0)
+    }
+
+    func toggleShopping(_ item: ShoppingItem) {
+        if let remote { remote.setShopping(item, checked: !item.isChecked); return }
+        guard let index = shopping.firstIndex(where: { $0.id == item.id }) else { return }
+        shopping[index].isChecked.toggle()
+    }
+
+    func deleteShopping(_ items: [ShoppingItem]) {
+        let ids = items.map(\.id)
+        if let remote { remote.deleteShopping(ids); return }
+        shopping.removeAll { ids.contains($0.id) }
+    }
+
     func toggleDone(_ item: AgendaItem) {
         guard let index = today.firstIndex(where: { $0.id == item.id }) else { return }
         today[index].isDone.toggle()
@@ -67,6 +140,34 @@ final class FamilyStore {
 }
 
 extension FamilyStore {
+    /// Magasin vide, rempli par la synchronisation Firebase.
+    static func empty() -> FamilyStore {
+        FamilyStore(
+            householdName: "",
+            currentUserId: "",
+            people: [],
+            today: [],
+            shopping: [],
+            tonight: nil,
+            unpaidBillsTotal: 0,
+            unpaidBillsCount: 0,
+            shopperName: nil
+        )
+    }
+
+    /// Remet le magasin à zéro (déconnexion).
+    func reset() {
+        householdName = ""
+        currentUserId = ""
+        people = []
+        today = []
+        shopping = []
+        tonight = nil
+        unpaidBillsTotal = 0
+        unpaidBillsCount = 0
+        shopperName = nil
+    }
+
     static func sample() -> FamilyStore {
         let cal = Calendar.current
         func yearsAgo(_ y: Int, months: Int = 0) -> Date {

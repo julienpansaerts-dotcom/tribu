@@ -27,8 +27,13 @@ struct FrigoHomeView: View {
                     .staggeredAppear(3)
 
                 HStack(alignment: .top, spacing: 14) {
-                    billsNote
-                        .rotationEffect(.degrees(1.5))
+                    if store.unpaidBillsCount > 0 {
+                        billsNote
+                            .rotationEffect(.degrees(1.5))
+                    } else {
+                        shoppingNote
+                            .rotationEffect(.degrees(1.5))
+                    }
                     sizeNote
                         .rotationEffect(.degrees(-2))
                 }
@@ -66,6 +71,10 @@ struct FrigoHomeView: View {
     private var reminderPostIt: some View {
         let reminder = store.today.first { $0.kind == .reminder }
         return VStack(alignment: .leading, spacing: 6) {
+            if reminder == nil {
+                Text("Rappels").font(t.headline(13)).foregroundStyle(Color(hex: 0x6B5A1E))
+                Text("Rien à faire pour l'instant !").font(t.hand(28)).foregroundStyle(theme.ink)
+            }
             if let reminder {
                 Text("Pour toi · \(reminder.time)")
                     .font(t.headline(13))
@@ -122,6 +131,9 @@ struct FrigoHomeView: View {
                 .font(t.title(22))
                 .padding(.bottom, 6)
             let events = store.today.filter { $0.kind != .reminder }
+            if events.isEmpty {
+                Text("Rien de prévu. L'agenda arrive bientôt !").font(t.body(16)).padding(.vertical, 12)
+            }
             ForEach(Array(events.enumerated()), id: \.element.id) { index, item in
                 HStack {
                     Text(item.time).font(t.headline(15)).frame(width: 54, alignment: .leading)
@@ -159,12 +171,31 @@ struct FrigoHomeView: View {
         .magnet(Color(hex: 0x7FAF8B), alignment: .topLeading)
     }
 
+    private var shoppingNote: some View {
+        VStack(alignment: .leading) {
+            Text("Courses").font(t.headline(13)).foregroundStyle(Color(hex: 0x6E2F28))
+            Spacer(minLength: 12)
+            Text("\(store.remainingShopping.count) à prendre").font(t.display(26)).foregroundStyle(theme.ink)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+        .background(theme.color(for: .depenses))
+        .paperShadow()
+        .magnet(Color(hex: 0x7FAF8B), alignment: .topLeading)
+    }
+
     private var sizeNote: some View {
         VStack(alignment: .leading) {
             if let change = store.latestSizeChange {
                 Text("\(change.person.firstName) a grandi").font(t.headline(13)).foregroundStyle(Color(hex: 0x23415F))
                 Spacer(minLength: 12)
                 Text("\(change.size.label) \(change.size.previousValue ?? "") → \(change.size.value)")
+                    .font(t.headline(17))
+                    .foregroundStyle(theme.ink)
+            } else {
+                Text("Famille").font(t.headline(13)).foregroundStyle(Color(hex: 0x23415F))
+                Spacer(minLength: 12)
+                Text("\(store.people.count) personne\(store.people.count > 1 ? "s" : "")")
                     .font(t.headline(17))
                     .foregroundStyle(theme.ink)
             }
