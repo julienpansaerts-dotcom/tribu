@@ -81,6 +81,7 @@ struct AlbumHomeView: View {
             members.staggeredAppear(0)
             mealCard.staggeredAppear(1)
             todayList.staggeredAppear(2)
+            FeedPreview().padding(.horizontal, 4).staggeredAppear(3)
         }
         .padding(.horizontal, 20)
         .padding(.top, 22)

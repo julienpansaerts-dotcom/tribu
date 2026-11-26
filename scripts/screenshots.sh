@@ -30,25 +30,36 @@ xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --
 xcrun simctl install "$UDID" "$APP"
 mkdir -p "$OUT"
 
-shoot() { # style tab appearance [personne] [écran d'accueil]
-  local style="$1" tab="$2" appearance="$3" person="${4:-}" onboarding="${5:-}"
+shoot() { # nom style apparence [arguments supplémentaires…]
+  local name="$1" style="$2" appearance="$3"
+  shift 3
   xcrun simctl ui "$UDID" appearance "$appearance"
   xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
-  xcrun simctl launch "$UDID" "$BUNDLE" -tribu.demo YES -tribu.style "$style" -tribu.tab "$tab" \
-    -tribu.person "$person" -tribu.onboarding "$onboarding" >/dev/null
+  xcrun simctl launch "$UDID" "$BUNDLE" -tribu.demo YES -tribu.style "$style" \
+    -tribu.tab home -tribu.person "" -tribu.onboarding "" -tribu.module "" -tribu.cuisine "" "$@" >/dev/null
   sleep 4
-  local name="${style}-${onboarding:-$tab}${person:+-$person}-${appearance}.png"
-  xcrun simctl io "$UDID" screenshot "$OUT/$name" >/dev/null
-  echo "  $name"
+  xcrun simctl io "$UDID" screenshot "$OUT/${style}-${name}-${appearance}.png" >/dev/null
+  echo "  ${style}-${name}-${appearance}.png"
 }
 
 for style in frigo album couleurs; do
-  shoot "$style" home light
-  shoot "$style" family light leo
-  shoot "$style" cuisine light
-  shoot "$style" more light
-  shoot "$style" home dark
+  shoot home "$style" light
+  shoot home "$style" dark
+  shoot family-leo "$style" light -tribu.tab family -tribu.person leo
+  shoot courses "$style" light -tribu.tab cuisine -tribu.cuisine Courses
+  shoot more "$style" light -tribu.tab more
 done
-shoot couleurs home light "" welcome
-shoot couleurs home light "" tribe
-shoot couleurs home light "" join
+
+style=couleurs
+shoot menu "$style" light -tribu.tab cuisine -tribu.cuisine Menu
+shoot recettes "$style" light -tribu.tab cuisine -tribu.cuisine Recettes
+shoot agenda "$style" light -tribu.tab agenda
+shoot rappels "$style" light -tribu.tab more -tribu.module reminders
+shoot taches "$style" light -tribu.tab more -tribu.module tasks
+shoot depenses "$style" light -tribu.tab more -tribu.module expenses
+shoot activites "$style" light -tribu.tab more -tribu.module activities
+shoot fil "$style" light -tribu.tab more -tribu.module feed
+shoot agenda frigo light -tribu.tab agenda
+shoot depenses album light -tribu.tab more -tribu.module expenses
+shoot welcome "$style" light -tribu.onboarding welcome
+shoot tribe "$style" light -tribu.onboarding tribe

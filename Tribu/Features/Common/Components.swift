@@ -110,3 +110,29 @@ extension String {
     /// Majuscule sur la première lettre seulement (« Mercredi 25 novembre »).
     var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
 }
+
+/// Les trois dernières lignes du fil d'activité, pour l'écran d'accueil.
+struct FeedPreview: View {
+    @Environment(\.theme) private var theme
+    @Environment(FamilyStore.self) private var store
+
+    var body: some View {
+        let entries = Array(store.feed.sorted { $0.createdAt > $1.createdAt }.prefix(3))
+        if !entries.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Du côté de la tribu").font(theme.typography.headline(14)).foregroundStyle(theme.secondaryText)
+                ForEach(entries) { entry in
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        (Text(entry.actorName).font(theme.typography.headline(14)) + Text(" " + entry.text).font(theme.typography.body(14)))
+                            .lineLimit(2)
+                        Spacer(minLength: 4)
+                        Text(entry.createdAt.formatted(.relative(presentation: .numeric, unitsStyle: .narrow).locale(Locale(identifier: "fr_BE"))))
+                            .font(theme.typography.caption(11))
+                            .foregroundStyle(theme.secondaryText)
+                    }
+                }
+            }
+            .padding(.top, 6)
+        }
+    }
+}

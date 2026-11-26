@@ -253,7 +253,8 @@ struct PersonEditor: View {
             allergies: allergies,
             notes: notes,
             sizes: existing?.sizes ?? [],
-            growth: existing?.growth ?? []
+            growth: existing?.growth ?? [],
+            documents: existing?.documents ?? []
         )
         store.savePerson(person)
         dismiss()

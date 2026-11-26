@@ -126,6 +126,7 @@ struct PersonDetailView: View {
                     if !person.notes.isEmpty {
                         notes(person)
                     }
+                    DocumentsSection(person: person)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 32)

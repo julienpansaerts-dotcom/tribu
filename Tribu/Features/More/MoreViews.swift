@@ -6,44 +6,81 @@ struct MoreView: View {
     @Environment(AppModel.self) private var model
     @Environment(FamilyStore.self) private var store
     @State private var confirmSignOut = false
+    @State private var path: NavigationPath = {
+        var path = NavigationPath()
+        if let raw = UserDefaults.standard.string(forKey: "tribu.module"), let destination = MoreDestination(rawValue: raw) {
+            path.append(destination)
+        }
+        return path
+    }()
 
     private var t: Typography { theme.typography }
+
+    enum MoreDestination: String, Hashable {
+        case reminders, tasks, activities, expenses, feed
+    }
 
     private struct ModuleEntry: Identifiable {
         let title: String
         let icon: String
         let module: Module
+        let destination: MoreDestination
         var id: String { title }
     }
 
     private let modules: [ModuleEntry] = [
-        ModuleEntry(title: "Rappels", icon: "bell", module: .rappels),
-        ModuleEntry(title: "Tâches et idées", icon: "checklist", module: .taches),
-        ModuleEntry(title: "Activités", icon: "figure.and.child.holdinghands", module: .activites),
-        ModuleEntry(title: "Dépenses", icon: "eurosign", module: .depenses),
+        ModuleEntry(title: "Rappels", icon: "bell", module: .rappels, destination: .reminders),
+        ModuleEntry(title: "Tâches et idées", icon: "checklist", module: .taches, destination: .tasks),
+        ModuleEntry(title: "Activités", icon: "figure.and.child.holdinghands", module: .activites, destination: .activities),
+        ModuleEntry(title: "Dépenses", icon: "eurosign", module: .depenses, destination: .expenses),
     ]
 
+    private func subtitle(_ destination: MoreDestination) -> String {
+        switch destination {
+        case .reminders:
+            let count = store.reminders.filter { !$0.isDone && $0.assigneeIds.contains(store.currentUserId) }.count
+            return count == 0 ? "Rien pour toi" : "\(count) pour toi"
+        case .tasks:
+            let count = store.tasks.filter { $0.kind == .task && $0.status != .done }.count
+            return "\(count) en cours"
+        case .activities:
+            return "\(store.activities.filter { $0.plannedDate == nil }.count) idées"
+        case .expenses:
+            return store.unpaidBillsCount == 0 ? "Tout est payé" : "\(store.unpaidBillsCount) à payer"
+        case .feed:
+            return ""
+        }
+    }
+
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Plus").font(t.display(44)).padding(.top, 12).padding(.bottom, 6)
 
                     LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                         ForEach(modules) { entry in
-                            VStack(alignment: .leading, spacing: 18) {
-                                Image(systemName: entry.icon).font(.title3)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.title).font(t.headline(16))
-                                    Text("Bientôt").font(t.caption(12)).opacity(0.7)
+                            NavigationLink(value: entry.destination) {
+                                VStack(alignment: .leading, spacing: 18) {
+                                    Image(systemName: entry.icon).font(.title3)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(entry.title).font(t.headline(16))
+                                        Text(subtitle(entry.destination)).font(t.caption(12)).opacity(0.7)
+                                    }
                                 }
+                                .foregroundStyle(theme.ink)
+                                .padding(16)
+                                .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
+                                .background(theme.color(for: entry.module), in: RoundedRectangle(cornerRadius: theme.cornerRadius, style: .continuous))
                             }
-                            .foregroundStyle(theme.ink)
-                            .padding(16)
-                            .frame(maxWidth: .infinity, minHeight: 110, alignment: .topLeading)
-                            .background(theme.color(for: entry.module), in: RoundedRectangle(cornerRadius: theme.cornerRadius, style: .continuous))
+                            .buttonStyle(.plain)
                         }
                     }
+
+                    NavigationLink(value: MoreDestination.feed) {
+                        settingsRow(icon: "list.bullet.rectangle", title: "Fil d'activité", value: store.feed.first.map { "\($0.actorName) \($0.text)" } ?? "")
+                    }
+                    .buttonStyle(.plain)
 
                     Text("Réglages").font(t.title(22)).padding(.top, 18)
                     NavigationLink {
@@ -78,6 +115,15 @@ struct MoreView: View {
                 .padding(.bottom, 24)
             }
             .themedBackground()
+            .navigationDestination(for: MoreDestination.self) { destination in
+                switch destination {
+                case .reminders: RemindersView()
+                case .tasks: TasksView()
+                case .activities: ActivitiesView()
+                case .expenses: ExpensesView()
+                case .feed: FeedView()
+                }
+            }
             .confirmationDialog("Se déconnecter de Tribu ?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Se déconnecter", role: .destructive) { model.signOut() }
             }

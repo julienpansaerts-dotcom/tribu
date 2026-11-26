@@ -8,9 +8,18 @@ protocol FamilyRemote: AnyObject {
     func saveSize(_ size: SizeEntry, personId: String)
     func deleteSize(_ sizeId: String, personId: String)
     func saveGrowth(_ point: GrowthPoint, personId: String)
-    func addShopping(name: String, quantity: String?)
+    func saveDocument(_ entry: IdentityDocument, personId: String)
+    func deleteDocument(_ documentId: String, personId: String)
+    func addShopping(name: String, quantity: String?, origin: String?)
     func setShopping(_ item: ShoppingItem, checked: Bool)
+    func updateShoppingQuantity(_ item: ShoppingItem, quantity: String)
     func deleteShopping(_ itemIds: [String])
+    func save(collection: String, id: String, data: [String: Any])
+    func update(collection: String, id: String, fields: [String: Any])
+    func delete(collection: String, id: String)
+    func saveBudgets(_ budgets: [String: Double])
+    func uploadImage(_ data: Data, name: String) async throws -> String
+    func imageURL(path: String) async -> URL?
 }
 
 /// Données de la tribu, partagées en temps réel via Firebase (ou exemples locaux en mode démo).
@@ -21,46 +30,176 @@ final class FamilyStore {
 
     var householdName: String
     var currentUserId: String
+    /// Identifiant de connexion de l'utilisateur (vide en mode démo).
+    var currentUid: String = ""
     var people: [Person]
-    var today: [AgendaItem]
     var shopping: [ShoppingItem]
-    var tonight: Meal?
-    var unpaidBillsTotal: Decimal
-    var unpaidBillsCount: Int
     var shopperName: String?
+    var reminders: [Reminder] = []
+    var events: [FamilyEvent] = []
+    var recipes: [Recipe] = []
+    var meals: [Meal] = []
+    var tasks: [TaskItem] = []
+    var expenses: [Expense] = []
+    var activities: [Activity] = []
+    var feed: [FeedEntry] = []
+    var budgets: [String: Double] = [:]
 
-    init(
-        householdName: String,
-        currentUserId: String,
-        people: [Person],
-        today: [AgendaItem],
-        shopping: [ShoppingItem],
-        tonight: Meal?,
-        unpaidBillsTotal: Decimal,
-        unpaidBillsCount: Int,
-        shopperName: String?
-    ) {
+    init(householdName: String, currentUserId: String, people: [Person], shopping: [ShoppingItem], shopperName: String?) {
         self.householdName = householdName
         self.currentUserId = currentUserId
         self.people = people
-        self.today = today
         self.shopping = shopping
-        self.tonight = tonight
-        self.unpaidBillsTotal = unpaidBillsTotal
-        self.unpaidBillsCount = unpaidBillsCount
         self.shopperName = shopperName
     }
 
     var currentUser: Person? { person(currentUserId) }
+    var authorName: String { currentUser?.firstName ?? "" }
 
     func person(_ id: String?) -> Person? {
         guard let id else { return nil }
         return people.first { $0.id == id }
     }
 
+    func names(_ ids: [String]) -> String {
+        let list = ids.compactMap { person($0)?.firstName }
+        if list.count == people.count, list.count > 1 { return "Tous" }
+        return ListFormatter.localizedString(byJoining: list)
+    }
+
     var remainingShopping: [ShoppingItem] { shopping.filter { !$0.isChecked } }
 
-    // MARK: - Modifications
+    // MARK: - Aujourd'hui
+
+    var tonight: Meal? { meals.first { $0.id == Meal.key(for: .now) } }
+
+    var unpaidExpenses: [Expense] { expenses.filter { !$0.isPaid } }
+    var unpaidBillsCount: Int { unpaidExpenses.count }
+    var unpaidBillsTotal: Decimal { Decimal(unpaidExpenses.reduce(0) { $0 + $1.amount }) }
+
+    /// Ce qui se passe aujourd'hui : rappels, rendez-vous et repas, dans l'ordre.
+    var today: [AgendaItem] {
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: .now)
+        let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) ?? .now
+        let day = DateInterval(start: dayStart, end: dayEnd)
+        var items: [AgendaItem] = []
+
+        for reminder in reminders {
+            let isToday = day.contains(reminder.dueAt)
+            let overdue = reminder.dueAt < dayStart && !reminder.isDone
+            let doneToday = reminder.doneAt.map { day.contains($0) } ?? false
+            guard isToday || overdue || doneToday else { continue }
+            let forNames = names(reminder.assigneeIds)
+            let mine = reminder.assigneeIds.contains(currentUserId)
+            items.append(AgendaItem(
+                id: "r_" + reminder.id,
+                time: overdue ? "En retard" : reminder.dueAt.formatted(date: .omitted, time: .shortened),
+                title: reminder.title,
+                detail: mine ? "Rappel de \(reminder.createdByName) pour toi" : "Rappel pour \(forNames)",
+                kind: .reminder,
+                personId: reminder.assigneeIds.first,
+                isDone: reminder.isDone,
+                sourceId: reminder.id,
+                sortDate: reminder.dueAt
+            ))
+        }
+
+        for event in events {
+            for occurrence in event.occurrences(in: day) {
+                items.append(AgendaItem(
+                    id: "e_" + event.id + "_" + String(Int(occurrence.start.timeIntervalSince1970)),
+                    time: occurrence.allDay ? "Journée" : occurrence.start.formatted(date: .omitted, time: .shortened),
+                    title: occurrence.title,
+                    detail: [names(occurrence.personIds), occurrence.location].filter { !$0.isEmpty }.joined(separator: " · "),
+                    kind: .event,
+                    personId: occurrence.personIds.first,
+                    sourceId: event.id,
+                    sortDate: occurrence.allDay ? dayStart : occurrence.start
+                ))
+            }
+        }
+
+        if let meal = tonight {
+            let evening = cal.date(bySettingHour: 19, minute: 0, second: 0, of: .now) ?? .now
+            items.append(AgendaItem(
+                id: "m_" + meal.id,
+                time: "19:00",
+                title: meal.title,
+                detail: meal.minutes > 0 ? "\(meal.minutes) min · \(meal.servings) pers." : "Au menu ce soir",
+                kind: .meal,
+                sourceId: meal.id,
+                sortDate: evening
+            ))
+        }
+        return items.sorted { $0.sortDate < $1.sortDate }
+    }
+
+    func toggleDone(_ item: AgendaItem) {
+        guard item.kind == .reminder, let reminder = reminders.first(where: { $0.id == item.sourceId }) else { return }
+        setReminder(reminder, done: !reminder.isDone)
+    }
+
+    /// Le changement de taille le plus récent, mis en avant sur l'écran d'accueil.
+    var latestSizeChange: (person: Person, size: SizeEntry)? {
+        var best: (person: Person, size: SizeEntry)?
+        let limit = Date.now.addingTimeInterval(-30 * 24 * 3600)
+        for person in people {
+            for size in person.sizes where size.previousValue != nil && size.updatedAt > limit {
+                if let current = best, current.size.updatedAt >= size.updatedAt { continue }
+                best = (person: person, size: size)
+            }
+        }
+        return best
+    }
+
+    // MARK: - Documents génériques
+
+    func save<T: FamilyDocument>(_ item: T) {
+        if let remote {
+            remote.save(collection: T.collection, id: item.id, data: item.firestoreData)
+            return
+        }
+        var list = self[keyPath: T.storePath]
+        if let index = list.firstIndex(where: { $0.id == item.id }) {
+            list[index] = item
+        } else {
+            list.append(item)
+        }
+        self[keyPath: T.storePath] = list
+    }
+
+    func delete<T: FamilyDocument>(_ item: T) {
+        if let remote {
+            remote.delete(collection: T.collection, id: item.id)
+            return
+        }
+        self[keyPath: T.storePath].removeAll { $0.id == item.id }
+    }
+
+    /// Ajoute une ligne au fil d'activité de la tribu.
+    func post(_ text: String, icon: String) {
+        save(FeedEntry(text: text, actorName: authorName, icon: icon))
+    }
+
+    // MARK: - Rappels
+
+    func setReminder(_ reminder: Reminder, done: Bool) {
+        var updated = reminder
+        updated.doneAt = done ? .now : nil
+        updated.doneByName = done ? authorName : nil
+        save(updated)
+        if done { post("a validé « \(reminder.title) »", icon: "checkmark.circle") }
+    }
+
+    func markSeen(_ reminder: Reminder) {
+        guard !currentUserId.isEmpty, reminder.assigneeIds.contains(currentUserId), !reminder.seenByIds.contains(currentUserId) else { return }
+        var updated = reminder
+        updated.seenByIds.append(currentUserId)
+        save(updated)
+    }
+
+    // MARK: - Personnes et tailles
 
     func savePerson(_ person: Person) {
         if let remote { remote.savePerson(person); return }
@@ -68,6 +207,7 @@ final class FamilyStore {
             var updated = person
             updated.sizes = people[index].sizes
             updated.growth = people[index].growth
+            updated.documents = people[index].documents
             people[index] = updated
         } else {
             people.append(person)
@@ -80,6 +220,9 @@ final class FamilyStore {
     }
 
     func saveSize(_ size: SizeEntry, personId: String) {
+        if size.previousValue != nil, size.updatedAt > Date.now.addingTimeInterval(-60), let p = person(personId) {
+            post("a changé \(size.label.lowercased()) de \(p.firstName) : \(size.previousValue ?? "") → \(size.value)", icon: "ruler")
+        }
         if let remote { remote.saveSize(size, personId: personId); return }
         guard let p = people.firstIndex(where: { $0.id == personId }) else { return }
         if let s = people[p].sizes.firstIndex(where: { $0.id == size.id }) {
@@ -102,11 +245,47 @@ final class FamilyStore {
         people[p].growth.sort { $0.date < $1.date }
     }
 
-    func addShopping(name: String, quantity: String?) {
+    func saveDocument(_ entry: IdentityDocument, personId: String) {
+        if let remote { remote.saveDocument(entry, personId: personId); return }
+        guard let p = people.firstIndex(where: { $0.id == personId }) else { return }
+        if let d = people[p].documents.firstIndex(where: { $0.id == entry.id }) {
+            people[p].documents[d] = entry
+        } else {
+            people[p].documents.append(entry)
+        }
+    }
+
+    func deleteDocument(_ documentId: String, personId: String) {
+        if let remote { remote.deleteDocument(documentId, personId: personId); return }
+        guard let p = people.firstIndex(where: { $0.id == personId }) else { return }
+        people[p].documents.removeAll { $0.id == documentId }
+    }
+
+    // MARK: - Courses
+
+    func addShopping(name: String, quantity: String?, origin: String? = nil) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        if let remote { remote.addShopping(name: trimmed, quantity: quantity); return }
-        shopping.insert(ShoppingItem(id: UUID().uuidString, name: trimmed, quantity: quantity, origin: nil), at: 0)
+        if let remote { remote.addShopping(name: trimmed, quantity: quantity, origin: origin); return }
+        shopping.insert(ShoppingItem(id: UUID().uuidString, name: trimmed, quantity: quantity, origin: origin), at: 0)
+    }
+
+    /// Ajoute des ingrédients en fusionnant avec les articles déjà sur la liste.
+    func addIngredients(_ ingredients: [ParsedIngredient], origin: String) {
+        for ingredient in ingredients {
+            if let existing = remainingShopping.first(where: { IngredientParser.normalize($0.name) == IngredientParser.normalize(ingredient.name) }) {
+                let merged = IngredientParser.merge(existing.quantity, ingredient.quantityText)
+                if let remote {
+                    remote.updateShoppingQuantity(existing, quantity: merged ?? existing.quantity ?? "")
+                } else if let index = shopping.firstIndex(where: { $0.id == existing.id }) {
+                    shopping[index].quantity = merged
+                    shopping[index].origin = [existing.origin, origin].compactMap { $0 }.joined(separator: " + ")
+                }
+            } else {
+                addShopping(name: ingredient.name, quantity: ingredient.quantityText, origin: origin)
+            }
+        }
+        post("a ajouté \(ingredients.count) ingrédients de « \(origin) » aux courses", icon: "basket")
     }
 
     func toggleShopping(_ item: ShoppingItem) {
@@ -121,51 +300,37 @@ final class FamilyStore {
         shopping.removeAll { ids.contains($0.id) }
     }
 
-    func toggleDone(_ item: AgendaItem) {
-        guard let index = today.firstIndex(where: { $0.id == item.id }) else { return }
-        today[index].isDone.toggle()
-    }
+    // MARK: - Budget
 
-    /// Le changement de taille le plus récent, mis en avant sur l'écran d'accueil.
-    var latestSizeChange: (person: Person, size: SizeEntry)? {
-        var best: (person: Person, size: SizeEntry)?
-        for person in people {
-            for size in person.sizes where size.previousValue != nil {
-                if let current = best, current.size.updatedAt >= size.updatedAt { continue }
-                best = (person: person, size: size)
-            }
-        }
-        return best
+    func saveBudgets(_ newBudgets: [String: Double]) {
+        if let remote { remote.saveBudgets(newBudgets); return }
+        budgets = newBudgets
     }
 }
 
 extension FamilyStore {
     /// Magasin vide, rempli par la synchronisation Firebase.
     static func empty() -> FamilyStore {
-        FamilyStore(
-            householdName: "",
-            currentUserId: "",
-            people: [],
-            today: [],
-            shopping: [],
-            tonight: nil,
-            unpaidBillsTotal: 0,
-            unpaidBillsCount: 0,
-            shopperName: nil
-        )
+        FamilyStore(householdName: "", currentUserId: "", people: [], shopping: [], shopperName: nil)
     }
 
     /// Remet le magasin à zéro (déconnexion).
     func reset() {
         householdName = ""
         currentUserId = ""
+        currentUid = ""
         people = []
-        today = []
         shopping = []
-        tonight = nil
-        unpaidBillsTotal = 0
-        unpaidBillsCount = 0
         shopperName = nil
+        reminders = []
+        events = []
+        recipes = []
+        meals = []
+        tasks = []
+        expenses = []
+        activities = []
+        feed = []
+        budgets = [:]
     }
 
     static func sample() -> FamilyStore {
@@ -174,6 +339,12 @@ extension FamilyStore {
             cal.date(byAdding: DateComponents(year: -y, month: -months), to: .now) ?? .now
         }
         func monthsAgo(_ m: Int) -> Date { cal.date(byAdding: .month, value: -m, to: .now) ?? .now }
+        func today(_ hour: Int, _ minute: Int = 0) -> Date {
+            cal.date(bySettingHour: hour, minute: minute, second: 0, of: .now) ?? .now
+        }
+        func inDays(_ d: Int, _ hour: Int = 10) -> Date {
+            cal.date(byAdding: .day, value: d, to: today(hour)) ?? .now
+        }
         let hourAgo = Date.now.addingTimeInterval(-3600)
 
         let camille = Person(
@@ -229,19 +400,13 @@ extension FamilyStore {
             growth: []
         )
 
-        return FamilyStore(
+        let store = FamilyStore(
             householdName: "La tribu",
             currentUserId: "alex",
             people: [camille, alex, leo, nina],
-            today: [
-                AgendaItem(id: "t1", time: "09:00", title: "Acheter du pain", detail: "Rappel de Camille pour toi", kind: .reminder, personId: "camille"),
-                AgendaItem(id: "t2", time: "10:30", title: "Vaccin de Nina", detail: "Dr Lambert · Alex y va", kind: .event, personId: "alex"),
-                AgendaItem(id: "t3", time: "16:15", title: "Récupérer Léo à l'école", detail: "Camille", kind: .event, personId: "camille"),
-                AgendaItem(id: "t4", time: "19:00", title: "Risotto aux champignons", detail: "À table", kind: .meal, personId: nil),
-            ],
             shopping: [
                 ShoppingItem(id: "s1", name: "Champignons de Paris", quantity: "400 g", origin: "Risotto"),
-                ShoppingItem(id: "s2", name: "Oignons", quantity: "×3", origin: "Risotto + Chili"),
+                ShoppingItem(id: "s2", name: "Oignons", quantity: "3", origin: "Risotto + Chili"),
                 ShoppingItem(id: "s3", name: "Parmesan", quantity: "80 g", origin: "Risotto"),
                 ShoppingItem(id: "s4", name: "Lait demi-écrémé", quantity: "×2", origin: nil),
                 ShoppingItem(id: "s5", name: "Bananes", quantity: nil, origin: nil),
@@ -252,10 +417,63 @@ extension FamilyStore {
                 ShoppingItem(id: "s10", name: "Pain gris", quantity: nil, origin: nil, isChecked: true),
                 ShoppingItem(id: "s11", name: "Riz arborio", quantity: "300 g", origin: "Risotto", isChecked: true),
             ],
-            tonight: Meal(title: "Risotto aux champignons", minutes: 35, servings: 4, note: "Tout est dans la liste"),
-            unpaidBillsTotal: 214.60,
-            unpaidBillsCount: 2,
             shopperName: "Camille"
         )
+        store.reminders = [
+            Reminder(id: "r1", title: "Acheter du pain", dueAt: today(9), offsets: [30, 0], assigneeIds: ["alex"],
+                     createdById: "camille", createdByName: "Camille"),
+            Reminder(id: "r2", title: "Appeler la crèche pour vendredi", dueAt: inDays(1, 8), offsets: [0], assigneeIds: ["camille"],
+                     createdById: "alex", createdByName: "Alex"),
+        ]
+        store.events = [
+            FamilyEvent(id: "e1", title: "Vaccin de Nina", start: today(10, 30), end: today(11), personIds: ["alex", "nina"], location: "Dr Lambert"),
+            FamilyEvent(id: "e2", title: "Récupérer Léo à l'école", start: today(16, 15), end: today(16, 45), personIds: ["camille"], recurrence: .weekly),
+            FamilyEvent(id: "e3", title: "Anniversaire de Mamie", start: inDays(3, 12), end: inDays(3, 16), personIds: [], location: "Namur"),
+            FamilyEvent(id: "e4", title: "Piscine", start: inDays(2, 14), end: inDays(2, 15), personIds: ["leo", "alex"]),
+        ]
+        store.recipes = [
+            Recipe(id: "rc1", url: "https://www.example.be/risotto", title: "Risotto aux champignons", servings: 4, totalMinutes: 35,
+                   ingredients: ["300 g de riz arborio", "400 g de champignons de Paris", "1 oignon", "1 l de bouillon de légumes", "80 g de parmesan", "2 c. à soupe d'huile d'olive"],
+                   steps: ["Émincer l'oignon et le faire revenir dans l'huile.", "Ajouter le riz et le nacrer 2 minutes.", "Verser le bouillon louche par louche en remuant.", "Ajouter les champignons poêlés et le parmesan."],
+                   favorite: true, createdByName: "Camille"),
+            Recipe(id: "rc2", title: "Curry de lentilles corail", servings: 4, totalMinutes: 30,
+                   ingredients: ["250 g de lentilles corail", "400 ml de lait de coco", "1 oignon", "2 c. à café de curry"],
+                   steps: ["Faire revenir l'oignon.", "Ajouter lentilles, coco et curry, cuire 20 minutes."], createdByName: "Alex"),
+            Recipe(id: "rc3", title: "Tarte fine poireaux et chèvre", servings: 4, totalMinutes: 45,
+                   ingredients: ["1 pâte feuilletée", "3 poireaux", "1 bûche de chèvre"], steps: ["Fondre les poireaux.", "Garnir la pâte et cuire 25 minutes."], createdByName: "Camille"),
+        ]
+        store.meals = [
+            Meal(id: Meal.key(for: .now), recipeId: "rc1", title: "Risotto aux champignons", minutes: 35, servings: 4, note: "Tout est dans la liste"),
+            Meal(id: Meal.key(for: inDays(1)), recipeId: "rc2", title: "Curry de lentilles corail", minutes: 30, servings: 4),
+            Meal(id: Meal.key(for: inDays(2)), recipeId: "rc3", title: "Tarte fine poireaux et chèvre", minutes: 45, servings: 4),
+        ]
+        store.tasks = [
+            TaskItem(id: "t1", title: "Repeindre la chambre de Léo", notes: "Couleur vert sauge, 2 couches.", status: .doing,
+                     assigneeIds: ["alex"], dueDate: inDays(10), estimatedCost: 120,
+                     checklist: [ChecklistEntry(text: "Acheter la peinture", done: true), ChecklistEntry(text: "Protéger le sol"), ChecklistEntry(text: "Première couche")],
+                     comments: [TaskComment(text: "J'ai trouvé la teinte chez Brico !", authorName: "Camille", at: hourAgo)],
+                     createdByName: "Camille", lastEditedByName: "Camille", lastChange: "a ajouté un commentaire"),
+            TaskItem(id: "t2", title: "Réserver le stage de Pâques", assigneeIds: ["camille"], dueDate: inDays(4), createdByName: "Alex"),
+            TaskItem(id: "t3", title: "Week-end à la mer en mai", notes: "Le Coq ou De Haan ?", kind: .idea,
+                     estimatedCost: 450, links: ["https://www.example.be/location"], voterIds: ["alex", "camille"], createdByName: "Alex"),
+        ]
+        store.expenses = [
+            Expense(id: "x1", vendor: "Engie", amount: 148.30, category: .energie, issueDate: inDays(-5), dueDate: inDays(6),
+                    iban: "BE68 5390 0754 7034", communication: "+++090/9337/55493+++", recurrence: .monthly, createdByName: "Alex"),
+            Expense(id: "x2", vendor: "Crèche Les Lutins", amount: 66.30, category: .enfants, issueDate: inDays(-2), dueDate: inDays(12), createdByName: "Camille"),
+            Expense(id: "x3", vendor: "Delhaize", amount: 87.45, category: .courses, issueDate: inDays(-1), paidAt: inDays(-1), paidByName: "Camille"),
+            Expense(id: "x4", vendor: "Proximus", amount: 59.99, category: .abonnements, issueDate: inDays(-8), paidAt: inDays(-3), paidByName: "Alex", recurrence: .monthly),
+        ]
+        store.budgets = ["courses": 600, "energie": 200, "enfants": 250, "loisirs": 150]
+        store.activities = [
+            Activity(id: "a1", title: "Pairi Daiza", details: "Prendre les billets en ligne, c'est moins cher.", tags: ["Journée", "Extérieur"], voterIds: ["alex", "camille"], createdByName: "Camille"),
+            Activity(id: "a2", title: "Atelier poterie parent-enfant", tags: ["Pluie", "Grands"], voterIds: ["camille"], createdByName: "Camille"),
+            Activity(id: "a3", title: "Balade au bois de la Cambre", tags: ["Gratuit", "Extérieur", "Petits"], createdByName: "Alex"),
+        ]
+        store.feed = [
+            FeedEntry(text: "a ajouté 6 ingrédients du risotto aux courses", actorName: "Camille", icon: "basket", createdAt: Date.now.addingTimeInterval(-120)),
+            FeedEntry(text: "a changé pointure de Léo : 27 → 28", actorName: "Alex", icon: "ruler", createdAt: hourAgo),
+        ]
+        return store
     }
 }

@@ -12,6 +12,7 @@ struct Person: Identifiable, Hashable {
     var notes: [String]
     var sizes: [SizeEntry]
     var growth: [GrowthPoint]
+    var documents: [IdentityDocument] = []
 
     var initial: String { String(firstName.prefix(1)).uppercased() }
 
@@ -70,6 +71,21 @@ enum SizeTemplates {
     ]
 }
 
+/// Papier d'identité ou document à renouveler (carte d'identité, passeport, Kids-ID…).
+struct IdentityDocument: Identifiable, Hashable {
+    static let kinds = ["Carte d'identité (eID)", "Kids-ID", "Passeport", "Permis de conduire", "Carte européenne d'assurance maladie", "Autre"]
+
+    var id: String = UUID().uuidString
+    var kind: String
+    var number: String = ""
+    var expiresAt: Date?
+
+    var daysLeft: Int? {
+        guard let expiresAt else { return nil }
+        return Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: .now), to: expiresAt).day
+    }
+}
+
 /// Un point de la courbe de croissance.
 struct GrowthPoint: Identifiable, Hashable {
     var id: String = UUID().uuidString
@@ -89,6 +105,9 @@ struct AgendaItem: Identifiable, Hashable {
     var kind: Kind
     var personId: String?
     var isDone: Bool = false
+    /// Identifiant du rappel, de l'événement ou du repas d'origine.
+    var sourceId: String = ""
+    var sortDate: Date = .now
 }
 
 /// Un article de la liste de courses.
@@ -100,10 +119,3 @@ struct ShoppingItem: Identifiable, Hashable {
     var isChecked: Bool = false
 }
 
-/// Le repas prévu pour un soir.
-struct Meal: Hashable {
-    var title: String
-    var minutes: Int
-    var servings: Int
-    var note: String
-}

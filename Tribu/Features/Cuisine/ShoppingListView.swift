@@ -19,8 +19,7 @@ struct ShoppingListView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
+        List {
                 Section {
                     header
                         .listRowInsets(EdgeInsets(top: 12, leading: 20, bottom: 4, trailing: 20))
@@ -71,7 +70,6 @@ struct ShoppingListView: View {
             .scrollContentBackground(.hidden)
             .themedBackground()
             .animation(.snappy, value: store.shopping)
-        }
     }
 
     private var header: some View {
