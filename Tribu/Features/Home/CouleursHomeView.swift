@@ -22,6 +22,7 @@ struct CouleursHomeView: View {
                 .staggeredAppear(2)
                 agendaTile.staggeredAppear(3)
                 mealTile.staggeredAppear(4)
+                FeedPreview().padding(.horizontal, 4).staggeredAppear(5)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 24)

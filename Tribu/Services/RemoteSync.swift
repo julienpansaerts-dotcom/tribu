@@ -1,4 +1,5 @@
 import FirebaseFirestore
+import FirebaseStorage
 import Foundation
 
 /// Synchronisation en temps réel d'une tribu avec Firestore.
@@ -38,6 +39,8 @@ final class RemoteSync: FamilyRemote {
         listeners.append(household.addSnapshotListener { [weak self] snapshot, _ in
             guard let self, let data = snapshot?.data() else { return }
             self.store?.householdName = data["name"] as? String ?? "La tribu"
+            let budgets = data["budgets"] as? [String: Any] ?? [:]
+            self.store?.budgets = budgets.compactMapValues { ($0 as? NSNumber)?.doubleValue }
         })
 
         listeners.append(people.addSnapshotListener { [weak self] snapshot, _ in
@@ -52,6 +55,26 @@ final class RemoteSync: FamilyRemote {
         listeners.append(shoppingItems.order(by: "createdAt", descending: true).addSnapshotListener { [weak self] snapshot, _ in
             guard let self, let documents = snapshot?.documents else { return }
             self.store?.shopping = documents.map { Self.shoppingItem(id: $0.documentID, data: $0.data()) }
+        })
+
+        listen(Reminder.self)
+        listen(FamilyEvent.self)
+        listen(Recipe.self) { $0.order(by: "createdAt", descending: true) }
+        let since = Meal.key(for: Calendar.current.date(byAdding: .day, value: -14, to: .now) ?? .now)
+        listen(Meal.self) { $0.whereField(FieldPath.documentID(), isGreaterThanOrEqualTo: since) }
+        listen(TaskItem.self)
+        listen(Expense.self) { $0.order(by: "issueDate", descending: true) }
+        listen(Activity.self)
+        listen(FeedEntry.self) { $0.order(by: "createdAt", descending: true).limit(to: 40) }
+    }
+
+    /// Écoute une collection de la tribu et remplit la liste correspondante du magasin.
+    private func listen<T: FamilyDocument>(_ type: T.Type, query: ((CollectionReference) -> Query)? = nil) {
+        let collection = household.collection(T.collection)
+        let q: Query = query?(collection) ?? collection
+        listeners.append(q.addSnapshotListener { [weak self] snapshot, _ in
+            guard let self, let store = self.store, let documents = snapshot?.documents else { return }
+            store[keyPath: T.storePath] = documents.compactMap { T(id: $0.documentID, data: $0.data()) }
         })
     }
 
@@ -114,7 +137,7 @@ final class RemoteSync: FamilyRemote {
         people.document(personId).updateData(["growth.\(point.id)": entry])
     }
 
-    func addShopping(name: String, quantity: String?) {
+    func addShopping(name: String, quantity: String?, origin: String?) {
         var data: [String: Any] = [
             "name": name,
             "checked": false,
@@ -122,7 +145,54 @@ final class RemoteSync: FamilyRemote {
             "createdAt": FieldValue.serverTimestamp(),
         ]
         if let quantity, !quantity.isEmpty { data["quantity"] = quantity }
+        if let origin, !origin.isEmpty { data["origin"] = origin }
         shoppingItems.addDocument(data: data)
+    }
+
+    func updateShoppingQuantity(_ item: ShoppingItem, quantity: String) {
+        shoppingItems.document(item.id).updateData(["quantity": quantity])
+    }
+
+    func saveDocument(_ entry: IdentityDocument, personId: String) {
+        var data: [String: Any] = ["kind": entry.kind, "number": entry.number]
+        if let expires = entry.expiresAt {
+            data["expiresAt"] = Timestamp(date: expires)
+        } else {
+            data["expiresAt"] = NSNull()
+        }
+        people.document(personId).updateData(["documents.\(entry.id)": data])
+    }
+
+    func deleteDocument(_ documentId: String, personId: String) {
+        people.document(personId).updateData(["documents.\(documentId)": FieldValue.delete()])
+    }
+
+    func save(collection: String, id: String, data: [String: Any]) {
+        household.collection(collection).document(id).setData(data, merge: true)
+    }
+
+    func update(collection: String, id: String, fields: [String: Any]) {
+        household.collection(collection).document(id).updateData(fields)
+    }
+
+    func delete(collection: String, id: String) {
+        household.collection(collection).document(id).delete()
+    }
+
+    func saveBudgets(_ budgets: [String: Double]) {
+        household.updateData(["budgets": budgets])
+    }
+
+    func uploadImage(_ data: Data, name: String) async throws -> String {
+        let path = "households/\(householdId)/\(name)"
+        let metadata = StorageMetadata()
+        metadata.contentType = "image/jpeg"
+        _ = try await Storage.storage().reference(withPath: path).putDataAsync(data, metadata: metadata)
+        return path
+    }
+
+    func imageURL(path: String) async -> URL? {
+        try? await Storage.storage().reference(withPath: path).downloadURL()
     }
 
     func setShopping(_ item: ShoppingItem, checked: Bool) {
@@ -172,6 +242,13 @@ final class RemoteSync: FamilyRemote {
         }
         .sorted { $0.date < $1.date }
 
+        let documentsMap = data["documents"] as? [String: [String: Any]] ?? [:]
+        let documents: [IdentityDocument] = documentsMap.map { key, value in
+            IdentityDocument(id: key, kind: value["kind"] as? String ?? "Document", number: value["number"] as? String ?? "",
+                             expiresAt: (value["expiresAt"] as? Timestamp)?.dateValue())
+        }
+        .sorted { ($0.expiresAt ?? .distantFuture) < ($1.expiresAt ?? .distantFuture) }
+
         return Person(
             id: id,
             linkedUid: data["linkedUid"] as? String,
@@ -182,7 +259,8 @@ final class RemoteSync: FamilyRemote {
             allergies: data["allergies"] as? [String] ?? [],
             notes: data["notes"] as? [String] ?? [],
             sizes: sizes,
-            growth: growth
+            growth: growth,
+            documents: documents
         )
     }
 
@@ -192,7 +270,7 @@ final class RemoteSync: FamilyRemote {
             id: id,
             name: data["name"] as? String ?? "",
             quantity: data["quantity"] as? String,
-            origin: addedBy.map { "Ajouté par \($0)" },
+            origin: data["origin"] as? String ?? addedBy.map { "Ajouté par \($0)" },
             isChecked: data["checked"] as? Bool ?? false
         )
     }

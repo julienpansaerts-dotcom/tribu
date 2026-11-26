@@ -38,6 +38,12 @@ struct FrigoHomeView: View {
                         .rotationEffect(.degrees(-2))
                 }
                 .staggeredAppear(4)
+
+                FeedPreview()
+                    .padding(14)
+                    .background(Color.white.opacity(0.7))
+                    .rotationEffect(.degrees(0.8))
+                    .staggeredAppear(5)
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)

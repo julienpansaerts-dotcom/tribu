@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct TribuApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model: AppModel
     @AppStorage("tribu.style") private var styleRaw: String = TribuStyle.couleurs.rawValue
 
@@ -79,19 +80,11 @@ struct RootView: View {
             Tab("Accueil", systemImage: "house", value: AppTab.home) {
                 HomeView()
             }
-            Tab("Courses", systemImage: "basket", value: AppTab.cuisine) {
-                ShoppingListView()
+            Tab("Cuisine", systemImage: "basket", value: AppTab.cuisine) {
+                CuisineView()
             }
             Tab("Agenda", systemImage: "calendar", value: AppTab.agenda) {
-                ComingSoonView(
-                    title: "Agenda",
-                    module: .agenda,
-                    lines: [
-                        "Agenda partagé de la tribu",
-                        "Copie automatique dans le calendrier iCloud",
-                        "Congés scolaires de la Fédération Wallonie-Bruxelles",
-                    ]
-                )
+                AgendaView()
             }
             Tab("Famille", systemImage: "person.2", value: AppTab.family) {
                 FamilyListView()

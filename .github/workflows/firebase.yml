@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "firebase/**"
+      - "functions/**"
       - "firebase.json"
       - ".github/workflows/firebase.yml"
   workflow_dispatch:
@@ -56,3 +57,38 @@ jobs:
             if publish "firebase.storage/$bucket" firebase/storage.rules; then break; fi
             echo "::warning::Stockage $bucket introuvable, essai suivant"
           done
+
+  functions:
+    name: Déployer les fonctions serveur
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Installer les dépendances
+        working-directory: functions
+        run: npm install --no-audit --no-fund
+
+      - name: Préparer le compte de service
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          echo "FIREBASE_PROJECT=$(jq -r .project_id "$RUNNER_TEMP/sa.json")" >> "$GITHUB_ENV"
+
+      - name: Activer les services Google nécessaires
+        run: |
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
+          gcloud services enable cloudbilling.googleapis.com cloudscheduler.googleapis.com eventarc.googleapis.com \
+            run.googleapis.com pubsub.googleapis.com cloudfunctions.googleapis.com cloudbuild.googleapis.com \
+            artifactregistry.googleapis.com --project "$FIREBASE_PROJECT" --quiet
+          sleep 30
+
+      - name: Déployer
+        run: npx --yes firebase-tools@14 deploy --only functions --project "$FIREBASE_PROJECT" --non-interactive --force

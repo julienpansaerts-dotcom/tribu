@@ -93,6 +93,11 @@ final class AppModel {
     }
 
     func signOut() {
+        if let hid = householdId, let uid, let token = AppDelegate.latestToken {
+            db.collection("households").document(hid).collection("members").document(uid)
+                .updateData(["fcmTokens": FieldValue.arrayRemove([token])])
+        }
+        AppDelegate.onToken = nil
         sync?.stop()
         sync = nil
         store.reset()
@@ -144,9 +149,21 @@ final class AppModel {
             guard let self, let me = people.first(where: { $0.linkedUid == uid }) else { return }
             self.store.currentUserId = me.id
             self.sync?.authorName = me.firstName
+            UserDefaults.standard.set(me.firstName, forKey: "tribu.authorName")
         }
         self.sync = sync
+        store.currentUid = uid
         sync.start()
+
+        // Notifications : on enregistre le jeton de cet iPhone dans la fiche du membre.
+        let memberRef = db.collection("households").document(hid).collection("members").document(uid)
+        AppDelegate.onToken = { token in
+            memberRef.updateData(["fcmTokens": FieldValue.arrayUnion([token])])
+        }
+        if let token = AppDelegate.latestToken {
+            memberRef.updateData(["fcmTokens": FieldValue.arrayUnion([token])]) { _ in }
+        }
+        NotificationPermission.request()
 
         if let personId {
             store.currentUserId = personId

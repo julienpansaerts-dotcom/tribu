@@ -41,6 +41,11 @@ service cloud.firestore {
       allow delete: if isParent(resource.data.householdId);
     }
 
+    // File d'envoi des notifications : réservée au serveur.
+    match /outbox/{jobId} {
+      allow read, write: if false;
+    }
+
     match /households/{hid} {
       allow create: if signedIn() && request.resource.data.createdBy == request.auth.uid;
       allow read: if isMember(hid) || (signedIn() && resource.data.createdBy == request.auth.uid);
@@ -80,6 +85,17 @@ service cloud.firestore {
 
       match /feed/{eventId} {
         allow read, create: if isMember(hid);
+      }
+
+      // Modules partagés de la tribu.
+      match /{collection}/{docId} {
+        allow read, write: if isMember(hid)
+          && collection in ['reminders', 'events', 'recipes', 'meals', 'tasks', 'expenses', 'activities'];
+      }
+
+      // État des notifications regroupées : réservé au serveur.
+      match /taskNotify/{docId} {
+        allow read, write: if false;
       }
     }
   }

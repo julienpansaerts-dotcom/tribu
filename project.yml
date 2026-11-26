@@ -29,11 +29,16 @@ targets:
         product: FirebaseFirestore
       - package: Firebase
         product: FirebaseCore
+      - package: Firebase
+        product: FirebaseStorage
+      - package: Firebase
+        product: FirebaseMessaging
     entitlements:
       path: Tribu/Tribu.entitlements
       properties:
         com.apple.developer.applesignin:
           - Default
+        aps-environment: development
     info:
       path: Tribu/Info.plist
       properties:
@@ -61,7 +66,14 @@ targets:
           - TribuFamiljen-Regular.ttf
           - TribuFamiljen-SemiBold.ttf
           - TribuFamiljen-Bold.ttf
-        NSPhotoLibraryUsageDescription: Tribu utilise vos photos pour la photo de famille et les fiches.
+        NSPhotoLibraryUsageDescription: Tribu utilise vos photos pour la photo de famille, les recettes et les factures.
+        NSCameraUsageDescription: Tribu utilise l'appareil photo pour scanner les factures et les tickets.
+        NSCalendarsFullAccessUsageDescription: Tribu copie l'agenda de la famille dans un calendrier « Tribu » de ton iPhone.
+        NSCalendarsWriteOnlyAccessUsageDescription: Tribu copie l'agenda de la famille dans un calendrier « Tribu » de ton iPhone.
+        NSFaceIDUsageDescription: Tribu protège les informations de santé et les papiers avec Face ID.
+        UIBackgroundModes:
+          - remote-notification
+        FirebaseAppDelegateProxyEnabled: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tribu
