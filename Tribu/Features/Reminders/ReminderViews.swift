@@ -212,7 +212,9 @@ struct ReminderEditor: View {
     private var footer: String {
         let times = offsets.sorted(by: >).map { minutes -> String in
             let date = dueAt.addingTimeInterval(TimeInterval(-minutes * 60))
-            return date.formatted(date: minutes >= 1440 ? .abbreviated : .omitted, time: .shortened)
+            return minutes >= 1440
+                ? date.formatted(.dateTime.weekday(.abbreviated).day().locale(Locale(identifier: "fr_BE"))) + " " + date.hm
+                : date.hm
         }
         guard !times.isEmpty else { return "Aucune notification : le rappel sera seulement visible dans l'app." }
         return "Notifications à " + ListFormatter.localizedString(byJoining: times) + "."
