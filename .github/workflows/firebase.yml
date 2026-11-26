@@ -18,18 +18,41 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-
       - name: Préparer le compte de service
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           if [ -z "$FIREBASE_SERVICE_ACCOUNT" ]; then echo "::error::Secret FIREBASE_SERVICE_ACCOUNT manquant"; exit 1; fi
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
+          gcloud auth activate-service-account --key-file="$RUNNER_TEMP/sa.json" --quiet
           echo "FIREBASE_PROJECT=$(jq -r .project_id "$RUNNER_TEMP/sa.json")" >> "$GITHUB_ENV"
 
-      - name: Déployer
-        run: npx --yes firebase-tools@14 deploy --only firestore:rules,storage --project "$FIREBASE_PROJECT" --non-interactive
+      # Publication directe via l'API Firebase Rules (sans firebase-tools, qui exige des droits en plus).
+      - name: Publier les règles
+        run: |
+          set -euo pipefail
+          TOKEN=$(gcloud auth print-access-token)
+          API="https://firebaserules.googleapis.com/v1/projects/$FIREBASE_PROJECT"
+          publish() { # nom de la publication, fichier de règles
+            local release="$1" file="$2"
+            local body ruleset
+            body=$(jq -n --rawfile c "$file" --arg n "$(basename "$file")" '{source:{files:[{name:$n, content:$c}]}}')
+            ruleset=$(curl -sS --fail-with-body -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+              "$API/rulesets" -d "$body" | jq -r .name)
+            echo "Règles compilées : $ruleset"
+            local payload
+            payload=$(jq -n --arg n "projects/$FIREBASE_PROJECT/releases/$release" --arg r "$ruleset" '{name:$n, rulesetName:$r}')
+            if curl -sS --fail-with-body -X PATCH -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+                "$API/releases/$release" -d "{\"release\": $payload}" > /dev/null; then
+              echo "Publié : $release"
+            else
+              curl -sS --fail-with-body -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+                "$API/releases" -d "$payload" > /dev/null
+              echo "Créé : $release"
+            fi
+          }
+          publish cloud.firestore firebase/firestore.rules
+          for bucket in "$FIREBASE_PROJECT.firebasestorage.app" "$FIREBASE_PROJECT.appspot.com"; do
+            if publish "firebase.storage/$bucket" firebase/storage.rules; then break; fi
+            echo "::warning::Stockage $bucket introuvable, essai suivant"
+          done
