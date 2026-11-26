@@ -79,7 +79,7 @@ struct ReminderRow: View {
             }
             Spacer(minLength: 0)
             VStack(alignment: .trailing, spacing: 2) {
-                Text(reminder.dueAt.formatted(date: .omitted, time: .shortened)).font(theme.typography.headline(15))
+                Text(reminder.dueAt.hm).font(theme.typography.headline(15))
                 Text(dayText).font(theme.typography.caption(12)).foregroundStyle(isLate ? Color(hex: 0xD9480F) : theme.secondaryText)
             }
         }

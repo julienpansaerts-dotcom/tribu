@@ -130,14 +130,14 @@ struct AgendaView: View {
                 let color = store.person(occurrence.personIds.first).map { Color(hex: $0.colorHex) } ?? theme.color(for: .agenda)
                 list.append(DayItem(
                     id: "e\(event.id)\(occurrence.start.timeIntervalSince1970)",
-                    time: occurrence.allDay ? "Journée" : occurrence.start.formatted(date: .omitted, time: .shortened),
+                    time: occurrence.allDay ? "Journée" : occurrence.start.hm,
                     title: occurrence.title,
                     detail: [store.names(occurrence.personIds), occurrence.location].filter { !$0.isEmpty }.joined(separator: " · "),
                     color: color, kind: .event(event), sort: occurrence.allDay ? start : occurrence.start))
             }
         }
         for reminder in store.reminders where interval.contains(reminder.dueAt) {
-            list.append(DayItem(id: "r\(reminder.id)", time: reminder.dueAt.formatted(date: .omitted, time: .shortened),
+            list.append(DayItem(id: "r\(reminder.id)", time: reminder.dueAt.hm,
                                 title: reminder.title, detail: "Rappel pour \(store.names(reminder.assigneeIds))",
                                 color: theme.color(for: .rappels), kind: .reminder(reminder), sort: reminder.dueAt))
         }

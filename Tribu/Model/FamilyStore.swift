@@ -94,7 +94,7 @@ final class FamilyStore {
             let mine = reminder.assigneeIds.contains(currentUserId)
             items.append(AgendaItem(
                 id: "r_" + reminder.id,
-                time: overdue ? "En retard" : reminder.dueAt.formatted(date: .omitted, time: .shortened),
+                time: overdue ? "En retard" : reminder.dueAt.hm,
                 title: reminder.title,
                 detail: mine ? "Rappel de \(reminder.createdByName) pour toi" : "Rappel pour \(forNames)",
                 kind: .reminder,
@@ -109,7 +109,7 @@ final class FamilyStore {
             for occurrence in event.occurrences(in: day) {
                 items.append(AgendaItem(
                     id: "e_" + event.id + "_" + String(Int(occurrence.start.timeIntervalSince1970)),
-                    time: occurrence.allDay ? "Journée" : occurrence.start.formatted(date: .omitted, time: .shortened),
+                    time: occurrence.allDay ? "Journée" : occurrence.start.hm,
                     title: occurrence.title,
                     detail: [names(occurrence.personIds), occurrence.location].filter { !$0.isEmpty }.joined(separator: " · "),
                     kind: .event,

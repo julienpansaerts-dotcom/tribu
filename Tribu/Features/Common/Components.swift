@@ -136,3 +136,10 @@ struct FeedPreview: View {
         }
     }
 }
+
+extension Date {
+    /// Heure au format belge, toujours sur 24 h (« 09:00 »).
+    var hm: String {
+        formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits).locale(Locale(identifier: "fr_BE")))
+    }
+}
