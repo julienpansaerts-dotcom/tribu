@@ -76,6 +76,20 @@ struct RootView: View {
     @State private var tab: AppTab = AppTab(rawValue: UserDefaults.standard.string(forKey: "tribu.tab") ?? "") ?? .home
 
     var body: some View {
+        tabs
+            .syncWidgets()
+            .onOpenURL { url in
+                // Liens des widgets : tribu://courses, tribu://aujourdhui, tribu://agenda
+                switch url.host() {
+                case "courses": tab = .cuisine
+                case "agenda": tab = .agenda
+                case "famille": tab = .family
+                default: tab = .home
+                }
+            }
+    }
+
+    private var tabs: some View {
         TabView(selection: $tab) {
             Tab("Accueil", systemImage: "house", value: AppTab.home) {
                 HomeView()

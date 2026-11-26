@@ -121,6 +121,7 @@ final class AppModel {
                 .updateData(["fcmTokens": FieldValue.arrayRemove([token])])
         }
         AppDelegate.onToken = nil
+        UserDefaults.standard.removeObject(forKey: "tribu.householdId")
         sync?.stop()
         sync = nil
         store.reset()
@@ -163,6 +164,7 @@ final class AppModel {
     @MainActor
     private func openTribe(hid: String, uid: String, member: [String: Any]) async {
         householdId = hid
+        UserDefaults.standard.set(hid, forKey: "tribu.householdId")
         role = member["role"] as? String
         let personId = member["personId"] as? String
         let name = member["displayName"] as? String ?? suggestedFirstName

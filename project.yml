@@ -23,6 +23,7 @@ targets:
         excludes:
           - "**/Licenses/**"
     dependencies:
+      - target: TribuWidgets
       - package: Firebase
         product: FirebaseAuth
       - package: Firebase
@@ -39,6 +40,8 @@ targets:
         com.apple.developer.applesignin:
           - Default
         aps-environment: development
+        com.apple.security.application-groups:
+          - group.com.julienpansaerts.tribu
     info:
       path: Tribu/Info.plist
       properties:
@@ -71,6 +74,10 @@ targets:
         NSCalendarsFullAccessUsageDescription: Tribu copie l'agenda de la famille dans un calendrier « Tribu » de ton iPhone.
         NSCalendarsWriteOnlyAccessUsageDescription: Tribu copie l'agenda de la famille dans un calendrier « Tribu » de ton iPhone.
         NSFaceIDUsageDescription: Tribu protège les informations de santé et les papiers avec Face ID.
+        CFBundleURLTypes:
+          - CFBundleURLName: tribu
+            CFBundleURLSchemes:
+              - tribu
         UIBackgroundModes:
           - remote-notification
         FirebaseAppDelegateProxyEnabled: true
@@ -82,6 +89,50 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGN_STYLE: Automatic
         OTHER_LDFLAGS: $(inherited) -ObjC
+  TribuWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: TribuWidgets
+      - path: Tribu/Shared
+      - path: Tribu/Theme/Theme.swift
+      - path: Tribu/Resources/Fonts
+        excludes:
+          - "Licenses/**"
+    info:
+      path: TribuWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Tribu
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        UIAppFonts:
+          - TribuBricolage-Regular.ttf
+          - TribuBricolage-SemiBold.ttf
+          - TribuBricolage-ExtraBold.ttf
+          - TribuCaveat-Bold.ttf
+          - TribuNewsreader-Regular.ttf
+          - TribuNewsreader-Medium.ttf
+          - TribuNewsreaderItalic-Medium.ttf
+          - TribuHanken-Regular.ttf
+          - TribuHanken-Medium.ttf
+          - TribuHanken-SemiBold.ttf
+          - TribuHanken-Bold.ttf
+          - TribuFamiljen-Regular.ttf
+          - TribuFamiljen-SemiBold.ttf
+          - TribuFamiljen-Bold.ttf
+    entitlements:
+      path: TribuWidgets/TribuWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.julienpansaerts.tribu
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tribu.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
 schemes:
   Tribu:
     build:
