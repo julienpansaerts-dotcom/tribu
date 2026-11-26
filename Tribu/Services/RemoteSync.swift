@@ -66,6 +66,8 @@ final class RemoteSync: FamilyRemote {
         listen(Expense.self) { $0.order(by: "issueDate", descending: true) }
         listen(Activity.self)
         listen(FeedEntry.self) { $0.order(by: "createdAt", descending: true).limit(to: 40) }
+        listen(Doctor.self)
+        listen(MedicalVisit.self) { $0.order(by: "date", descending: true) }
     }
 
     /// Écoute une collection de la tribu et remplit la liste correspondante du magasin.

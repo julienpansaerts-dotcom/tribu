@@ -44,6 +44,8 @@ final class FamilyStore {
     var activities: [Activity] = []
     var feed: [FeedEntry] = []
     var budgets: [String: Double] = [:]
+    var doctors: [Doctor] = []
+    var visits: [MedicalVisit] = []
 
     init(householdName: String, currentUserId: String, people: [Person], shopping: [ShoppingItem], shopperName: String?) {
         self.householdName = householdName
@@ -331,6 +333,8 @@ extension FamilyStore {
         activities = []
         feed = []
         budgets = [:]
+        doctors = []
+        visits = []
     }
 
     static func sample() -> FamilyStore {
@@ -465,6 +469,24 @@ extension FamilyStore {
             Expense(id: "x4", vendor: "Proximus", amount: 59.99, category: .abonnements, issueDate: inDays(-8), paidAt: inDays(-3), paidByName: "Alex", recurrence: .monthly),
         ]
         store.budgets = ["courses": 600, "energie": 200, "enfants": 250, "loisirs": 150]
+        store.doctors = [
+            Doctor(id: "d1", name: "Dr Lambert", specialty: "Pédiatre", phone: "+32 81 22 33 44", email: "cabinet.lambert@example.be",
+                   address: "Rue de Fer 12, 5000 Namur", notes: "Consultations sur rendez-vous, le mercredi après-midi sans rendez-vous.", personIds: ["leo", "nina"]),
+            Doctor(id: "d2", name: "Dr Peeters", specialty: "Gastro-entérologue", phone: "+32 2 555 12 34",
+                   address: "Clinique Saint-Luc, Bruxelles", personIds: ["leo"]),
+        ]
+        store.visits = [
+            MedicalVisit(id: "v1", personId: "leo", doctorId: "d1", date: monthsAgo(3), reason: "Bilan des 4 ans",
+                         summary: "Bonne croissance, courbe régulière. Vision et audition normales. Revoir dans 1 an.",
+                         heightCm: 103.5, weightKg: 16.1, createdByName: "Camille"),
+            MedicalVisit(id: "v2", personId: "leo", doctorId: "d2", date: monthsAgo(1), reason: "Reflux et maux de ventre",
+                         summary: "Pas d'inquiétude. Éviter les jus d'agrumes le soir, fractionner les repas. Contrôle si ça persiste.",
+                         treatment: "Gaviscon nourrisson, 5 ml après le repas du soir pendant 2 semaines",
+                         nextAppointment: inDays(20, 14), createdByName: "Alex"),
+            MedicalVisit(id: "v3", personId: "nina", doctorId: "d1", date: today(10, 30), reason: "Vaccin ROR",
+                         summary: "Vaccin fait, un peu de fièvre possible dans les 10 jours.", weightKg: 11.2,
+                         vaccines: ["ROR (rougeole, oreillons, rubéole)"], createdByName: "Alex"),
+        ]
         store.activities = [
             Activity(id: "a1", title: "Pairi Daiza", details: "Prendre les billets en ligne, c'est moins cher.", tags: ["Journée", "Extérieur"], voterIds: ["alex", "camille"], createdByName: "Camille"),
             Activity(id: "a2", title: "Atelier poterie parent-enfant", tags: ["Pluie", "Grands"], voterIds: ["camille"], createdByName: "Camille"),
