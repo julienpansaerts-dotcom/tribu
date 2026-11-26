@@ -32,6 +32,10 @@ struct WelcomeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             .disabled(model.isBusy)
             .overlay { if model.isBusy { ProgressView() } }
+            Button("Découvrir avec une famille d'exemple") { model.enterDemo() }
+                .font(theme.typography.headline(15))
+                .foregroundStyle(theme.text)
+                .frame(maxWidth: .infinity, minHeight: 44)
             Text("Tes données restent privées, partagées uniquement avec ta tribu.")
                 .font(theme.typography.caption(13))
                 .foregroundStyle(theme.secondaryText)
@@ -94,6 +98,10 @@ struct ChooseTribeView: View {
                 showJoin = true
             }
             Spacer()
+            Button("Découvrir avec une famille d'exemple") { model.enterDemo() }
+                .font(theme.typography.headline(15))
+                .foregroundStyle(theme.text)
+                .frame(maxWidth: .infinity, minHeight: 44)
             Button("Se déconnecter") { model.signOut() }
                 .font(theme.typography.body(15))
                 .foregroundStyle(theme.secondaryText)
