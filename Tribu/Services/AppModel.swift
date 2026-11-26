@@ -161,7 +161,7 @@ final class AppModel {
             memberRef.updateData(["fcmTokens": FieldValue.arrayUnion([token])])
         }
         if let token = AppDelegate.latestToken {
-            memberRef.updateData(["fcmTokens": FieldValue.arrayUnion([token])])
+            memberRef.updateData(["fcmTokens": FieldValue.arrayUnion([token])]) { _ in }
         }
         NotificationPermission.request()
 
