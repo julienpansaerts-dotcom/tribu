@@ -1,6 +1,7 @@
 import AuthenticationServices
 import CryptoKit
 import FirebaseAuth
+import FirebaseCore
 import FirebaseFirestore
 import Foundation
 import Observation
@@ -345,6 +346,72 @@ final class AppModel {
             errorMessage = "Impossible de créer l'invitation : \(error.localizedDescription)"
             return nil
         }
+    }
+
+    // MARK: - Bots (serveur MCP)
+
+    struct BotKey: Identifiable, Hashable {
+        let id: String
+        var name: String
+        var canWrite: Bool
+        var canFamily: Bool
+        var lastUsedAt: Date?
+        var calls: Int
+    }
+
+    /// Adresse du serveur MCP de Tribu pour une clé donnée.
+    static func mcpURL(for key: String) -> String {
+        let project = FirebaseApp.app()?.options.projectID ?? "tribu"
+        return "https://europe-west1-\(project).cloudfunctions.net/mcp/\(key)"
+    }
+
+    func botKeys() async -> [BotKey] {
+        guard let hid = householdId else { return [] }
+        let snapshot = try? await db.collection("apiKeys").whereField("householdId", isEqualTo: hid).getDocuments()
+        return (snapshot?.documents ?? []).map { doc in
+            let data = doc.data()
+            let scopes = data["scopes"] as? [String] ?? []
+            return BotKey(id: doc.documentID, name: data["name"] as? String ?? "Bot",
+                          canWrite: scopes.contains("write"), canFamily: scopes.contains("family"),
+                          lastUsedAt: (data["lastUsedAt"] as? Timestamp)?.dateValue(),
+                          calls: (data["calls"] as? NSNumber)?.intValue ?? 0)
+        }
+        .sorted { $0.name < $1.name }
+    }
+
+    /// Crée une clé et renvoie l'adresse complète à coller dans Grok (affichée une seule fois).
+    func createBotKey(name: String, canWrite: Bool, canFamily: Bool) async -> String? {
+        guard let hid = householdId, let uid else { return nil }
+        let alphabet = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789")
+        var bytes = [UInt8](repeating: 0, count: 40)
+        _ = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let key = String(bytes.map { alphabet[Int($0) % alphabet.count] })
+        let hash = Self.sha256(key)
+        var scopes: [String] = []
+        if canWrite { scopes.append("write") }
+        if canFamily { scopes.append("family") }
+        do {
+            try await db.collection("apiKeys").document(hash).setData([
+                "householdId": hid,
+                "name": name.isEmpty ? "Bot" : name,
+                "scopes": scopes,
+                "createdByUid": uid,
+                "personId": store.currentUserId,
+                "ownerName": store.authorName,
+                "ownerUid": uid,
+                "createdAt": FieldValue.serverTimestamp(),
+                "calls": 0,
+            ])
+            store.post("a connecté le bot « \(name) » à Tribu", icon: "sparkles")
+            return Self.mcpURL(for: key)
+        } catch {
+            errorMessage = "Impossible de créer la clé : \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    func revokeBotKey(_ id: String) async {
+        try? await db.collection("apiKeys").document(id).delete()
     }
 
     // MARK: - Outils

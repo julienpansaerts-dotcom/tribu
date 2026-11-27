@@ -89,6 +89,14 @@ struct MoreView: View {
                         settingsRow(icon: "paintpalette", title: "Style de l'app", value: theme.style.name)
                     }
                     .buttonStyle(.plain)
+                    if model.isParent && model.phase == .ready {
+                        NavigationLink {
+                            BotsView()
+                        } label: {
+                            settingsRow(icon: "sparkles", title: "Bots et IA (Grok…)", value: "")
+                        }
+                        .buttonStyle(.plain)
+                    }
                     if model.isParent {
                         NavigationLink {
                             InviteView()

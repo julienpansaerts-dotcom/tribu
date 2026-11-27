@@ -9,6 +9,7 @@
 
 const { onSchedule } = require("firebase-functions/v2/scheduler");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onRequest } = require("firebase-functions/v2/https");
 const { setGlobalOptions } = require("firebase-functions/v2");
 const admin = require("firebase-admin");
 
@@ -279,5 +280,16 @@ exports.dailyDeadlines = onSchedule({ schedule: "every day 09:00", timeZone: TZ 
         }
       }
     }
+  }
+});
+
+// ---------------------------------------------------------------- Serveur MCP (Grok, Claude, ChatGPT…)
+
+exports.mcp = onRequest({ cors: true, memory: "512MiB", timeoutSeconds: 60, invoker: "public" }, async (req, res) => {
+  try {
+    await require("./mcp").handleHttp(db, req, res);
+  } catch (error) {
+    console.error("MCP", error);
+    if (!res.headersSent) res.status(500).json({ jsonrpc: "2.0", error: { code: -32603, message: "Erreur interne" }, id: null });
   }
 });
