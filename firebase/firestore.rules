@@ -41,6 +41,15 @@ service cloud.firestore {
       allow delete: if isParent(resource.data.householdId);
     }
 
+    // Clés des bots (Grok, Claude…) : seule l'empreinte SHA-256 est stockée ; un parent les gère.
+    match /apiKeys/{keyHash} {
+      allow read: if signedIn() && isMember(resource.data.householdId);
+      allow create: if isParent(request.resource.data.householdId)
+        && request.resource.data.createdByUid == request.auth.uid;
+      allow delete: if isParent(resource.data.householdId);
+      allow update: if false;
+    }
+
     // File d'envoi des notifications : réservée au serveur.
     match /outbox/{jobId} {
       allow read, write: if false;
