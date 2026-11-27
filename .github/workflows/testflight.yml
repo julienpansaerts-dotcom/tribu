@@ -125,6 +125,15 @@ jobs:
             exit 1
           fi
 
+      - name: Révoquer le certificat de développement temporaire
+        if: always()
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -m pip install --quiet --break-system-packages pyjwt cryptography 2>/dev/null || python3 -m pip install --quiet pyjwt cryptography
+          python3 .github/scripts/cleanup_dev_certs.py
+
       - name: Journal en cas d'échec
         if: failure()
         uses: actions/upload-artifact@v5
