@@ -60,9 +60,6 @@ jobs:
           printf '%s\n' "$ASC_KEY_P8" > "$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8"
           echo "KEY_PATH=$RUNNER_TEMP/keys/AuthKey_${ASC_KEY_ID}.p8" >> "$GITHUB_ENV"
 
-      # L'archive n'est pas signée : la signature se fait à l'export avec le certificat de
-      # distribution géré par Apple (cloud), ce qui évite de créer un certificat de développement
-      # à chaque exécution (Apple limite leur nombre).
       - name: Archiver
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -74,9 +71,12 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath build/Tribu.xcarchive \
             -skipPackagePluginValidation -skipMacroValidation \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$KEY_PATH" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             archive 2>&1 | tee archive.log | grep -E "error:|ARCHIVE" || true
           grep -q "ARCHIVE SUCCEEDED" archive.log || { grep -E "error:" archive.log | sort -u | head -60; exit 1; }
 
