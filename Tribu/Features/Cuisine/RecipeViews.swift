@@ -540,7 +540,7 @@ struct MenuWeekView: View {
                 Text(day.formatted(.dateTime.day())).font(t.number(22))
             }
             .frame(width: 46)
-            .foregroundStyle(isToday ? theme.accent : theme.text)
+            .foregroundStyle(isToday ? theme.accent : (theme.style != .couleurs && isToday ? theme.ink : theme.text))
 
             if let meal {
                 NavigationLink(value: store.recipes.first { $0.id == meal.recipeId } ?? Recipe(title: meal.title)) {
@@ -576,6 +576,7 @@ struct MenuWeekView: View {
         .padding(10)
         .background(isToday ? theme.color(for: .repas).opacity(theme.style == .couleurs ? 0.5 : 1) : theme.surface,
                     in: RoundedRectangle(cornerRadius: min(theme.cornerRadius, 16), style: .continuous))
+        .foregroundStyle(isToday && theme.style != .couleurs ? theme.ink : theme.text)
     }
 }
 
